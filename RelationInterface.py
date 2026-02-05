@@ -4,17 +4,13 @@ from typing import List, Dict, Any
 
 class RelationInterface:
     def __init__(self, relation_name: str, default_search_text: str, simple_search_field: str,
-                 default_filters: List[Dict[str, Any]], columns: List[str] = None, db_path="inventory.db"):
+                 default_filters: List[Dict[str, Any]], db_path="inventory.db"):
         self.relation_name = relation_name
         self.db_path = db_path
         self.simple_search_field = simple_search_field
         self.filter_dict = default_filters
         self.search_field_text = default_search_text or ""
-        self.columns = columns  # store columns explicitly if provided
         self.curr_results = self.on_search_clicked()  # initial load
-    
-    def on_columns_changed(self, new_columns):
-        self.columns = new_columns
 
     def on_filter_changed(self, new_filter_dict):
         self.filter_dict = new_filter_dict
@@ -105,18 +101,20 @@ class RelationInterface:
             cursor = conn.cursor()
             cursor.execute(query, params)
             results = cursor.fetchall()
-
-            # Use self.columns if provided, otherwise fallback to DB column names
-            if self.columns:
-                columns = self.columns
-            else:
-                columns = [desc[0] for desc in cursor.description]
+            columns = [desc[0] for desc in cursor.description]
 
         self.curr_results = [dict(zip(columns, row)) for row in results]
         return self.curr_results
+    
+    def export_as_excel(self, exclude_columns=None, output_path="output.xlsx"):
+        if exclude_columns is None:
+            exclude_columns = []
 
-    def export_as_excel(self, output_path="output.xlsx"):
         data = self.on_search_clicked()  # filtered results
         df = pd.DataFrame(data)
+
+        # Drop excluded columns (ignore if not present)
+        df = df.drop(columns=exclude_columns, errors="ignore")
+
         df.to_excel(output_path, index=False)
         print(f"Exported {self.relation_name} to {output_path}")
