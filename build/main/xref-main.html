@@ -15,7 +15,7 @@
 
 <div class="node">
   <a name="main.py"></a>
-  <a target="code" href="///C:/Users/ryanr/InventoryApp/main.py" type="text/plain"><tt>main.py</tt></a>
+  <a target="code" href="///C:/Users/ryanr/ALS-Inventory-Manager/main.py" type="text/plain"><tt>main.py</tt></a>
 <span class="moduletype">Script</span>  <div class="import">
 imports:
     <a href="#DB">DB</a>
@@ -178,7 +178,6 @@ imports:
  &#8226;   <a href="#stat">stat</a>
  &#8226;   <a href="#string">string</a>
  &#8226;   <a href="#tkinter">tkinter</a>
- &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
  &#8226;   <a href="#tkinter.ttk">tkinter.ttk</a>
  &#8226;   <a href="#traceback">traceback</a>
  &#8226;   <a href="#types">types</a>
@@ -836,16 +835,18 @@ imported by:
 
 <div class="node">
   <a name="DB"></a>
-  <a target="code" href="///C:/Users/ryanr/InventoryApp/DB.py" type="text/plain"><tt>DB</tt></a>
+  <a target="code" href="///C:/Users/ryanr/ALS-Inventory-Manager/DB.py" type="text/plain"><tt>DB</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#os">os</a>
+ &#8226;   <a href="#re">re</a>
  &#8226;   <a href="#sqlite3">sqlite3</a>
 
   </div>
   <div class="import">
 imported by:
-    <a href="#main.py">main.py</a>
+    <a href="#RelationInterface">RelationInterface</a>
+ &#8226;   <a href="#main.py">main.py</a>
 
   </div>
 
@@ -897,10 +898,11 @@ imported by:
 
 <div class="node">
   <a name="RelationInterface"></a>
-  <a target="code" href="///C:/Users/ryanr/InventoryApp/RelationInterface.py" type="text/plain"><tt>RelationInterface</tt></a>
+  <a target="code" href="///C:/Users/ryanr/ALS-Inventory-Manager/RelationInterface.py" type="text/plain"><tt>RelationInterface</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#pandas">pandas</a>
+    <a href="#DB">DB</a>
+ &#8226;   <a href="#pandas">pandas</a>
  &#8226;   <a href="#sqlite3">sqlite3</a>
  &#8226;   <a href="#typing">typing</a>
 
@@ -36338,7 +36340,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#_py_warnings">_py_warnings</a>
+    <a href="#DB">DB</a>
+ &#8226;   <a href="#_py_warnings">_py_warnings</a>
  &#8226;   <a href="#_pydecimal">_pydecimal</a>
  &#8226;   <a href="#_pyrepl.pager">_pyrepl.pager</a>
  &#8226;   <a href="#_pyrepl.utils">_pyrepl.utils</a>
@@ -37932,7 +37935,6 @@ imports:
  &#8226;   <a href="#re">re</a>
  &#8226;   <a href="#sys">sys</a>
  &#8226;   <a href="#tkinter.constants">tkinter.constants</a>
- &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
  &#8226;   <a href="#tkinter.ttk">tkinter.ttk</a>
  &#8226;   <a href="#traceback">traceback</a>
  &#8226;   <a href="#types">types</a>
@@ -37942,26 +37944,8 @@ imports:
   <div class="import">
 imported by:
     <a href="#main.py">main.py</a>
- &#8226;   <a href="#tkinter.commondialog">tkinter.commondialog</a>
  &#8226;   <a href="#tkinter.constants">tkinter.constants</a>
- &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
  &#8226;   <a href="#tkinter.ttk">tkinter.ttk</a>
-
-  </div>
-
-</div>
-
-<div class="node">
-  <a name="tkinter.commondialog"></a>
-  <a target="code" href="///C:/Users/ryanr/AppData/Local/Python/pythoncore-3.14-64/Lib/tkinter/commondialog.py" type="text/plain"><tt>tkinter.commondialog</tt></a>
-<span class="moduletype">SourceModule</span>  <div class="import">
-imports:
-    <a href="#tkinter">tkinter</a>
-
-  </div>
-  <div class="import">
-imported by:
-    <a href="#tkinter.messagebox">tkinter.messagebox</a>
 
   </div>
 
@@ -37978,24 +37962,6 @@ imports:
   <div class="import">
 imported by:
     <a href="#tkinter">tkinter</a>
-
-  </div>
-
-</div>
-
-<div class="node">
-  <a name="tkinter.messagebox"></a>
-  <a target="code" href="///C:/Users/ryanr/AppData/Local/Python/pythoncore-3.14-64/Lib/tkinter/messagebox.py" type="text/plain"><tt>tkinter.messagebox</tt></a>
-<span class="moduletype">SourceModule</span>  <div class="import">
-imports:
-    <a href="#tkinter">tkinter</a>
- &#8226;   <a href="#tkinter.commondialog">tkinter.commondialog</a>
-
-  </div>
-  <div class="import">
-imported by:
-    <a href="#main.py">main.py</a>
- &#8226;   <a href="#tkinter">tkinter</a>
 
   </div>
 

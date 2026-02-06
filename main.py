@@ -29,11 +29,20 @@ class InventoryTable(ttk.LabelFrame):
         # Search Frame
         self.search_frame = ttk.Frame(self)
         self.search_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+
         self.search_entry = ttk.Entry(self.search_frame)
         self.search_entry.grid(row=0, column=0, sticky="ew", padx=5)
         self.search_entry.bind("<Return>", self.search)
-        ttk.Button(self.search_frame, text=f"Search {self.relation.simple_search_field}", command=self.search).grid(row=0, column=1, padx=5)
 
+        # Regular Search button
+        ttk.Button(self.search_frame, text="Search", command=self.search).grid(row=0, column=1, padx=5)
+
+        # Advanced Search button
+        ttk.Button(self.search_frame, text="Advanced Search", command=self.advanced_search).grid(row=0, column=2, padx=5)
+
+        # Make the entry expand to fill remaining space
+        self.search_frame.grid_columnconfigure(0, weight=1)
+        
         # Tree Frame
         self.tree_frame = tk.Frame(self, bd=1, relief="solid", width=500)
         self.tree_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
@@ -71,13 +80,102 @@ class InventoryTable(ttk.LabelFrame):
         ttk.Button(self.button_frame, text="Add", command=self.add).pack(side=tk.LEFT, padx=5)
         ttk.Button(self.button_frame, text="Delete", command=self.delete).pack(side=tk.LEFT, padx=5)
         ttk.Button(self.button_frame, text="Export", command=lambda: self.relation.export_as_excel(exclude_columns=self.exclude_fields_on_show, output_path=f"{self.relation.relation_name}.xlsx")).pack(side=tk.LEFT, padx=5)
+        self.tree.bind("<Double-1>", self.on_double_click)
 
     # -------------------- Actions --------------------
+    def advanced_search(self):
+        popup = tk.Toplevel(self)
+        popup.title("Advanced Search")
+        popup.resizable(False, False)
+
+        frame = ttk.Frame(popup, padding=20)
+        frame.pack(fill="both", expand=True)
+
+        # Create an entry for each column
+        entries = {}
+        for i, col in enumerate(DB.get_columns(self.relation.relation_name)):
+            if col in self.exclude_fields_on_show:
+                continue
+            ttk.Label(frame, text=f"{col}:").grid(row=i, column=0, sticky="e", pady=2)
+            entry = ttk.Entry(frame)
+            entry.grid(row=i, column=1, pady=2, padx=5)
+            entries[col] = entry
+
+        def apply_filters():
+            filter_values = {col: entries[col].get() for col in entries.keys() if entries[col].get().strip()}
+            self.relation.on_filter_changed(filter_values)
+            self.relation.curr_results = self.relation.on_search_clicked()
+            self.update_table()
+            popup.destroy()
+
+        ttk.Button(frame, text="Apply", command=apply_filters).grid(row=len(entries)+1, column=0, columnspan=2, pady=10)
+
+        # Center popup over the widget
+        popup.update_idletasks()
+        x = self.winfo_rootx() + (self.winfo_width() // 2) - (popup.winfo_width() // 2)
+        y = self.winfo_rooty() + (self.winfo_height() // 2) - (popup.winfo_height() // 2)
+        popup.geometry(f"+{x}+{y}")
+
     def update_table(self):
         for row in self.tree.get_children():
             self.tree.delete(row)
         for item in self.relation.curr_results:
             self.tree.insert("", tk.END, values=[item[col] for col in self.show_columns])
+    
+    def update_item(self, item_index: int, new_data: dict):
+        """
+        Update a row in the table from the InventoryWidget GUI.
+        Delegates to RelationInterface.on_item_updated()
+        """
+        try:
+            self.relation.on_item_updated(item_index, new_data)
+        except ValueError as e:
+            tk.messagebox.showerror("Update Error", str(e))
+    
+    def on_double_click(self, event):
+        selected_item = self.tree.focus()  # get selected item ID
+        if not selected_item:
+            return
+
+        values = self.tree.item(selected_item, "values")
+        # Assuming your tree columns match your table columns
+        columns = DB.get_columns(self.relation.relation_name)  # or your list of columns
+        data = dict(zip(columns, values))
+
+        self.open_update_popup(selected_item, data)
+
+    def open_update_popup(self, item_id, data):
+        popup = tk.Toplevel(self)
+        popup.title("Update Item")
+        popup.resizable(False, False)
+        
+        frame = ttk.Frame(popup, padding=20)
+        frame.pack(fill="both", expand=True)
+
+        entries = {}
+        for i, col in enumerate(data.keys()):
+            ttk.Label(frame, text=f"{col}:").grid(row=i, column=0, sticky="e", pady=2)
+            entry = ttk.Entry(frame)
+            entry.grid(row=i, column=1, pady=2, padx=5)
+            entry.insert(0, data[col])  # pre-fill current value
+            entries[col] = entry
+
+        def save_changes():
+            new_data = {col: entries[col].get() for col in data.keys()}
+            selected_index = self.tree.index(self.tree.selection()[0])  # numeric index
+            self.update_item(selected_index, new_data)
+            self.update_table()
+            popup.destroy()
+
+        ttk.Button(frame, text="Save", command=save_changes).grid(
+            row=len(data)+1, column=0, columnspan=2, pady=10
+        )
+
+        # Center popup over parent
+        popup.update_idletasks()
+        x = self.winfo_rootx() + (self.winfo_width() // 2) - (popup.winfo_width() // 2)
+        y = self.winfo_rooty() + (self.winfo_height() // 2) - (popup.winfo_height() // 2)
+        popup.geometry(f"+{x}+{y}")
 
     def search(self, event=None):
         text = self.search_entry.get()
@@ -89,6 +187,7 @@ class InventoryTable(ttk.LabelFrame):
         popup = tk.Toplevel(self)
         popup.title("Add New Item")
         popup.resizable(False, False)
+
         frame = ttk.Frame(popup, padding=20)
         frame.pack()
 
@@ -108,6 +207,25 @@ class InventoryTable(ttk.LabelFrame):
             popup.destroy()
 
         ttk.Button(frame, text="Save", command=save_item).grid(row=len(self.show_columns)+1, column=0, columnspan=2, pady=10)
+        # ---------- Center on parent widget ----------
+        popup.update_idletasks()  # calculate size
+
+        # Parent widget position & size
+        parent_x = self.winfo_rootx()
+        parent_y = self.winfo_rooty()
+        parent_width = self.winfo_width()
+        parent_height = self.winfo_height()
+
+        # Popup size
+        popup_width = popup.winfo_width()
+        popup_height = popup.winfo_height()
+
+        # Calculate position
+        x = parent_x + (parent_width // 2) - (popup_width // 2)
+        y = parent_y + (parent_height // 2) - (popup_height // 2)
+
+        # Move popup without changing size
+        popup.geometry(f"+{x}+{y}")
 
     def delete(self):
         selected = self.tree.selection()
@@ -119,50 +237,63 @@ class InventoryTable(ttk.LabelFrame):
 
 # -------------------- Main Window --------------------
 root = tk.Tk()
-root.title("Dual Inventory Manager")
-root.geometry("1200x700")
+root.title("Triple Inventory Manager")
+root.geometry("1800x700")  # wider window for 3 columns
 
-# Configure two columns
+# Configure three columns
 root.grid_rowconfigure(0, weight=1)
 root.grid_columnconfigure(0, weight=1)
 root.grid_columnconfigure(1, weight=1)
+root.grid_columnconfigure(2, weight=1)
 
+# Initialize DB
 DB.init_db()
 
-
-# RelationInterface instances
+# ---------- RelationInterface instances ----------
 products = RelationInterface(
     relation_name="Products",
     default_search_text="",
     simple_search_field="ProductName",
-    default_filters=[],
+    default_filters=[]
 )
 
-
-# Left widget
-left = InventoryTable(
-        root, 
-        products, 
-        title="Products"
-)
-left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-
-# RelationInterface instances
 consumables = RelationInterface(
     relation_name="ConsumableLogs",
     default_search_text="",
     simple_search_field="DateReceivedIni",
-    default_filters=[],
+    default_filters=[]
 )
 
-# Right widget (reuse same table for demo)
+non_consumables = RelationInterface(
+    relation_name="NonConsumableLogs",
+    default_search_text="",
+    simple_search_field="Date",
+    default_filters=[]
+)
+
+# ---------- InventoryTable widgets ----------
+left = InventoryTable(
+    root,
+    products,
+    title="Products"
+)
+left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+middle = InventoryTable(
+    root,
+    consumables,
+    exclude_fields_on_show=["ExpiryDate"],
+    exclude_fields_on_create=["id"],
+    title="Consumables"
+)
+middle.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
 right = InventoryTable(
-        root, 
-        consumables,
-        exclude_fields_on_show=["ExpiryDate"],
-        exclude_fields_on_create=["id"], 
-        title="Consumables"
-        )
-right.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+    root,
+    non_consumables,
+    exclude_fields_on_create=["id"],
+    title="Non-Consumables"
+)
+right.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
 
 root.mainloop()

@@ -1,10 +1,11 @@
 import sqlite3
 import pandas as pd  # for export to Excel
 from typing import List, Dict, Any
+import DB
 
 class RelationInterface:
     def __init__(self, relation_name: str, default_search_text: str, simple_search_field: str,
-                 default_filters: List[Dict[str, Any]], db_path="inventory.db"):
+                 default_filters: List[Dict[str, Any]], db_path=DB.db_path):
         self.relation_name = relation_name
         self.db_path = db_path
         self.simple_search_field = simple_search_field
@@ -24,8 +25,28 @@ class RelationInterface:
             return self.curr_results[item_index]
         except IndexError:
             raise ValueError(f"Item index {item_index} out of range")
+    
+    def on_item_updated(self, item_index: int, item_details: Dict[str, Any]):
+        """Update the row in the database using DB.update_item"""
+        try:
+            item = self.curr_results[item_index]
+        except IndexError:
+            raise ValueError(f"Item index {item_index} out of range")
 
-    def on_item_save_clicked(self, item_index: int, item_details: Dict[str, Any]):
+        # Use the DB.update_item function
+        success, error = DB.update_item(
+            table=self.relation_name,
+            row_id=item["id"],   # assuming every row has 'id' primary key
+            data=item_details
+        )
+
+        if not success:
+            raise ValueError(f"Failed to update: {error}")
+
+        # Refresh current results
+        self.curr_results = self.on_search_clicked()
+    
+    def on_item_updated(self, item_index: int, item_details: Dict[str, Any]):
         """Update the row in the database with new details"""
         try:
             item = self.curr_results[item_index]
@@ -40,6 +61,7 @@ class RelationInterface:
         query = f"UPDATE {self.relation_name} SET {set_clause} WHERE {self.simple_search_field}=?"
 
         with sqlite3.connect(self.db_path) as conn:
+            conn.execute("PRAGMA foreign_keys = ON;")
             cursor = conn.cursor()
             cursor.execute(query, params)
             conn.commit()
@@ -57,6 +79,7 @@ class RelationInterface:
         params = [item[self.simple_search_field]]
 
         with sqlite3.connect(self.db_path) as conn:
+            conn.execute("PRAGMA foreign_keys = ON;")
             cursor = conn.cursor()
             cursor.execute(query, params)
             conn.commit()
@@ -72,6 +95,7 @@ class RelationInterface:
         query = f"INSERT INTO {self.relation_name} ({columns}) VALUES ({placeholders})"
 
         with sqlite3.connect(self.db_path) as conn:
+            conn.execute("PRAGMA foreign_keys = ON;")
             cursor = conn.cursor()
             cursor.execute(query, params)
             conn.commit()
@@ -98,6 +122,7 @@ class RelationInterface:
             query += " WHERE " + " AND ".join(clauses)
 
         with sqlite3.connect(self.db_path) as conn:
+            conn.execute("PRAGMA foreign_keys = ON;")
             cursor = conn.cursor()
             cursor.execute(query, params)
             results = cursor.fetchall()
