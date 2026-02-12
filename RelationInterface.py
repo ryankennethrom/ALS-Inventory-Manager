@@ -85,23 +85,23 @@ class RelationInterface:
             conn.commit()
 
         self.curr_results = self.on_search_clicked()
-
-    def on_create_item_clicked(self, details: Dict[str, Any]):
-        """Insert a new row into the database"""
+    
+    def on_create_item_clicked(self, details: dict):
+        """Insert a new row into the database. Returns (status, user_message, error_details)."""
         columns = ", ".join(details.keys())
         placeholders = ", ".join(["?"] * len(details))
         params = list(details.values())
 
         query = f"INSERT INTO {self.relation_name} ({columns}) VALUES ({placeholders})"
-
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA foreign_keys = ON;")
             cursor = conn.cursor()
             cursor.execute(query, params)
             conn.commit()
 
+        # Update current results after successful insert
         self.curr_results = self.on_search_clicked()
-
+    
     def on_search_clicked(self) -> List[Dict[str, Any]]:
         query = f"SELECT * FROM {self.relation_name}"
         clauses = []
@@ -114,10 +114,10 @@ class RelationInterface:
 
         # Add additional filters
         if self.filter_dict:
-            for flter in self.filter_dict:
-                clauses.append(flter["clause"])
-                params.append(flter["param"])
-
+            for key in self.filter_dict.keys():
+                clauses += self.filter_dict[key]["clauses"]
+                params += self.filter_dict[key]["params"]
+        
         if clauses:
             query += " WHERE " + " AND ".join(clauses)
 
