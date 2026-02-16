@@ -9,6 +9,7 @@ from error_ui import show_error_ui
 from error_handler import run_with_error_handling
 from tkinter import messagebox
 import time
+import types
 
 def generate_random_name(length=6):
     letters = string.ascii_uppercase
@@ -63,17 +64,27 @@ class RelationWidget(ttk.LabelFrame):
         # Search Frame
         self.search_frame = ttk.Frame(self)
         self.search_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        
+        self.search_frame.grid_columnconfigure(0, weight=1)  # Entry expands
+        self.search_frame.grid_columnconfigure(1, weight=0)  # Buttons fixed width
 
         self.search_entry = ttk.Entry(self.search_frame)
         self.search_entry.grid(row=0, column=0, sticky="ew", padx=5)
         self.search_entry.bind("<Return>", self.search)
 
-        # Regular Search button
-        ttk.Button(self.search_frame, text=self.relation.simple_search_field, command=self.search).grid(row=0, column=1, padx=5)
+        ttk.Button(self.search_frame, text=self.relation.simple_search_field, command=self.search).grid(row=0, column=1, sticky="ew", padx=5)
 
-        # Advanced Search button
-        ttk.Button(self.search_frame, text="Advanced Search", command=self.advanced_search).grid(row=0, column=2, padx=5)
+        advance_btn = ttk.Button(self.search_frame, text="Advanced Search", style="TButton")
+        
+        style = ttk.Style()
+        style.configure(
+                    f"{self.relation.relation_name}AS.TButton",
+                    background="black",
+                    foreground="black",
+        )
 
+        advance_btn.config(command=types.MethodType(self.advanced_search, advance_btn))
+        advance_btn.grid(row=1, column=1, sticky="ew", padx=5)
         # Make the entry expand to fill remaining space
         self.search_frame.grid_columnconfigure(0, weight=1)
 
@@ -110,14 +121,14 @@ class RelationWidget(ttk.LabelFrame):
 
         # Buttons Frame
         self.button_frame = ttk.Frame(self)
-        self.button_frame.grid(row=2, column=0, pady=5)
+        self.button_frame.grid(row=3, column=0, pady=5)
         if not self.is_view:
             ttk.Button(self.button_frame, text="Add", command=self.add).pack(side=tk.LEFT, padx=5) 
             self.tree.bind("<Double-1>", self.on_double_click)
         ttk.Button(self.button_frame, text="Export", command=lambda: self.relation.export_as_excel(exclude_columns=self.exclude_fields_on_show, output_path=f"{self.relation.relation_name}.xlsx")).pack(side=tk.LEFT, padx=5)
 
     # -------------------- Actions --------------------
-    def advanced_search(self):
+    def advanced_search(self, advance_btn):
         if self.popup is not None and self.popup.winfo_exists() == 1:
             return
 
@@ -316,8 +327,18 @@ class RelationWidget(ttk.LabelFrame):
         # Buttons
         button_frame = ttk.Frame(frame)
         button_frame.grid(row=row, column=0, columnspan=3, pady=(15, 0))
+        
+        style = ttk.Style()
+        
+        def reset_filters():
+            self.relation.on_filter_changed(self.relation.default_filters)
+            self.relation.on_search_clicked()
+            self.update_table()
+            popup.destroy()
+            advance_btn.configure(style="TButton")
+            
 
-        def apply_filters():
+        def apply_filters(event=None):
             filters = {}
             for col, (entry, pred) in widgets.items():
                 value = (None if entry is None else entry.get().strip())
@@ -328,10 +349,13 @@ class RelationWidget(ttk.LabelFrame):
             self.relation.curr_results = self.relation.on_search_clicked()
             self.update_table()
             popup.destroy()
+            advance_btn.configure(style=f"{self.relation.relation_name}AS.TButton")
 
         ttk.Button(button_frame, text="Apply", command=apply_filters).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Reset", command=reset_filters).pack(side="left", padx=5)
         ttk.Button(button_frame, text="Cancel", command=popup.destroy).pack(side="left", padx=5)
 
+        popup.bind("<Return>", apply_filters)
         popup.update_idletasks()
 
         # Popup size

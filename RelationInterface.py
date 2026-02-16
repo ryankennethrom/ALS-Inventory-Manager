@@ -10,6 +10,7 @@ class RelationInterface:
         self.relation_name = relation_name
         self.db_path = db_path
         self.simple_search_field = simple_search_field
+        self.default_filters = default_filters
         self.filter_dict = default_filters
         self.search_field_text = default_search_text or ""
         self.curr_results = self.on_search_clicked()  # initial load

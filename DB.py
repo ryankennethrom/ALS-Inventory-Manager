@@ -32,13 +32,16 @@ def init_db(db_path=db_path):
         PO TEXT
     ) STRICT;
     """)
-
+    
     # ---------- Consumable Logs ----------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ConsumableLogs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ProductName TEXT NOT NULL,
             LOT TEXT NOT NULL,
+
+            Quantity INTEGER NOT NULL
+                CHECK (Quantity = 1),
 
             -- Dates for lifecycle
             DateReceived TEXT NOT NULL
@@ -100,7 +103,7 @@ def init_db(db_path=db_path):
                 ON DELETE RESTRICT
         ) STRICT;
     """)
-   
+    
     # ---------- Non-consumable logs ----------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS NonConsumableLogs (
@@ -110,10 +113,10 @@ def init_db(db_path=db_path):
             Quantity INTEGER NOT NULL
                 CHECK (Quantity > 0),
 
-            DateReceived TEXT NOT NULL
+            Date TEXT NOT NULL
                 CHECK (
-                    DateReceived GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
-                    AND DateReceived = date(DateReceived)
+                    Date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND Date = date(Date)
                 ),
 
             Initials TEXT NOT NULL
@@ -269,7 +272,8 @@ def init_db(db_path=db_path):
     FROM Products p
     LEFT JOIN AvailableNonConsumables n
         ON n.ProductName = p.ProductName
-    WHERE p.IsConsumable = 'n';
+    WHERE p.IsConsumable = 'n'
+      AND COALESCE(n.TotalQuantityAvailable, 0) <= p.Alert;
     """)
 
     conn.commit()
@@ -313,7 +317,7 @@ def get_column_types(table_name, db_path=db_path):
             col_type_upper = col_type.upper()
 
             # Detect integer
-            if "INT" in col_type_upper:
+            if "INT" in col_type_upper or "QUANTITY" in name.upper():
                 types[name] = "integer"
             # Detect float/real/numeric
             elif any(x in col_type_upper for x in ["REAL", "FLOA", "DOUB"]):

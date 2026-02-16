@@ -40,6 +40,9 @@ def humanize_error(e: Exception) -> tuple[str, str]:
     elif "CHECK constraint failed: ( OpenedInitials == '' AND DateOpened == '' ) or (OpenedInitials != '' AND DateOpened != '')" in msg:
         out["Short"]="OpenedInitials and DateOpened must both have values."
     
+    elif "" in msg:
+        out["Short"]="Cannot open more than total received quantity."
+
     return (out["Short"],out["Details"])
 
 def run_with_error_handling(master, func, *args, **kwargs):

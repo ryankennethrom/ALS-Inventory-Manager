@@ -4,6 +4,31 @@ import DB
 from RelationInterface import RelationInterface
 from RelationWidget import RelationWidget
 from error_handler import run_with_error_handling
+import types
+import sqlite3
+
+def create_item_quantity_times(obj, details: dict):
+        """Insert a new row into the database. Returns (status, user_message, error_details)."""
+        obj.validate_date_inputs(details)
+        
+        input_quantity = int(details["Quantity"])
+        if input_quantity <= 0:
+            raise Exception("Quantity must be > 0")
+
+        details["Quantity"] = "1"
+        columns = ", ".join(details.keys())
+        placeholders = ", ".join(["?"] * len(details))
+        params = list(details.values())
+        
+        for i in range(input_quantity):
+            query = f"INSERT INTO {obj.relation_name} ({columns}) VALUES ({placeholders})"
+            with sqlite3.connect(obj.db_path) as conn:
+                conn.execute("PRAGMA foreign_keys = ON;")
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                conn.commit()
+    
+        obj.curr_results = obj.on_search_clicked()
 
 def database_manager_content(root):
     # -------------------- Main Window --------------------
@@ -27,6 +52,8 @@ def database_manager_content(root):
         simple_search_field="ProductName",
         default_filters=[]
     )
+
+    consumables.on_create_item_clicked = types.MethodType(create_item_quantity_times, consumables)
 
     non_consumables = RelationInterface(
         relation_name="NonConsumableLogs",
@@ -57,80 +84,9 @@ def database_manager_content(root):
         non_consumables,
         exclude_fields_on_update=["CreatedDateTime"],
         exclude_fields_on_create=["id", "CreatedDateTime"],
-        title="NonConsumable Logs"
+        title="Non-consumable Logs"
     )
     right.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
-
-def analytics_content_old(root):
-    # -------------------- Grid Setup --------------------
-    root.grid_rowconfigure(0, weight=1)
-    root.grid_columnconfigure(0, weight=1)
-    root.grid_columnconfigure(1, weight=1)   # <-- add second column
-
-    # ---------- RelationInterface instances ----------
-    outOfStockConsumables = RelationInterface(
-        relation_name="OutOfStockConsumables",
-        default_search_text="",
-        simple_search_field="ProductName",
-        default_filters=[]
-    )
-
-    outOfStockNonConsumables = RelationInterface(
-        relation_name="OutOfStockNonConsumables",
-        default_search_text="",
-        simple_search_field="ProductName",
-        default_filters=[]
-    )
-
-    availableConsumables = RelationInterface(
-        relation_name="AvailableConsumables",
-        default_search_text="",
-        simple_search_field="ProductName",
-        default_filters=[]
-    ) 
-    
-    availableNonConsumables = RelationInterface(
-        relation_name="AvailableNonConsumables",
-        default_search_text="",
-        simple_search_field="ProductName",
-        default_filters=[]
-    )
-
-    # ---------- Left Widget ----------
-    left = RelationWidget(
-        root,
-        outOfStockConsumables,
-        is_view=True,
-        title="Out Of Stock Consumables"
-    )
-    left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-    
-    middle = RelationWidget(
-        root,
-        outOfStockNonConsumables,
-        exclude_fields_on_show=["TotalQuantityReceived", "TotalQuantityOpened"],
-        is_view=True,
-        title="Out Of Stock NonConsumables"
-    )
-    middle.grid(row=0, column=1, stick="nsew", padx=10, pady=10)
-
-    # ---------- Right Widget ----------
-    avcon = RelationWidget(
-        root,
-        availableConsumables,
-        is_view=True,
-        title="Available Consumables"
-    )
-    avcon.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
-    
-    avNonCon = RelationWidget(
-        root,
-        availableNonConsumables,
-        is_view=True,
-        exclude_fields_on_show=["TotalQuantityReceived", "TotalQuantityOpened"],
-        title="Available NonConsumables"
-    )
-    avNonCon.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
 
 def analytics_content(root):
     # ------------------ Scrollable Canvas ------------------
@@ -156,35 +112,35 @@ def analytics_content(root):
     inner_frame.bind("<Configure>", on_frame_configure)
 
     # ------------------ RelationInterface instances ------------------
-    outOfStockConsumables = RelationInterface(
+    outOfStockConsumablesRI = RelationInterface(
         relation_name="OutOfStockConsumables",
         default_search_text="",
         simple_search_field="ProductName",
         default_filters=[]
     )
 
-    outOfStockNonConsumables = RelationInterface(
+    outOfStockNonConsumablesRI = RelationInterface(
         relation_name="OutOfStockNonConsumables",
         default_search_text="",
         simple_search_field="ProductName",
         default_filters=[]
     )
 
-    availableConsumables = RelationInterface(
+    availableConsumablesRI = RelationInterface(
         relation_name="AvailableConsumables",
         default_search_text="",
         simple_search_field="ProductName",
         default_filters=[]
     )
 
-    availableNonConsumables = RelationInterface(
+    availableNonConsumablesRI = RelationInterface(
         relation_name="AvailableNonConsumables",
         default_search_text="",
         simple_search_field="ProductName",
         default_filters=[]
     )
 
-    reOrderList = RelationInterface(
+    reorder_ri = RelationInterface(
         relation_name="ReOrderList",
         default_search_text="",
         simple_search_field="ProductName",
@@ -192,57 +148,82 @@ def analytics_content(root):
     )
 
     # ------------------ Add RelationWidgets in 2x2 grid ------------------
-    left = RelationWidget(
+    outOfStockConsumables = RelationWidget(
         inner_frame,
-        outOfStockConsumables,
+        outOfStockConsumablesRI,
         is_view=True,
-        title="Out Of Stock Consumables"
+        title="Consumables"
     )
 
-    middle = RelationWidget(
+    outOfStockNonConsumables = RelationWidget(
         inner_frame,
-        outOfStockNonConsumables,
+        outOfStockNonConsumablesRI,
         exclude_fields_on_show=["TotalQuantityReceived", "TotalQuantityOpened"],
         is_view=True,
-        title="Out Of Stock Non-consumables"
+        title="Non-consumables"
     )
 
-    avcon = RelationWidget(
+    availableConsumables = RelationWidget(
         inner_frame,
-        availableConsumables,
+        availableConsumablesRI,
         is_view=True,
-        title="Available Consumables"
+        title="Consumables"
     )
 
-    avNonCon = RelationWidget(
+    availableNonConsumables = RelationWidget(
         inner_frame,
-        availableNonConsumables,
+        availableNonConsumablesRI,
         exclude_fields_on_show=["TotalQuantityReceived", "TotalQuantityOpened"],
         is_view=True,
-        title="Available Non-consumables"
+        title="Non-consumables"
     )
     
     reorder = RelationWidget(
         inner_frame,
-        reOrderList,
+        reorder_ri,
         exclude_fields_on_show=[],
         is_view=True,
-        title="Re-order List"
+        title="Consumables/Non-consumables"
     )
-    
-    left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-    middle.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
-    avcon.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
-    avNonCon.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
-    reorder.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
 
-    # Make columns expand evenly
+    # -------- Widgets -----------
+    reorder_header = tk.Label(
+        inner_frame,
+        text=f"Low Supply {"(" + str(len(reorder_ri.curr_results)) + ")"}",
+        font=("Segoe UI", 16, "bold")
+    )
+
+    out_of_stock_header = tk.Label(
+        inner_frame,
+        text=f"Out Of Stock {"(" + str(len(outOfStockConsumablesRI.curr_results)+len(outOfStockNonConsumablesRI.curr_results)) + ")"}",
+        font=("Segoe UI", 14, "bold")
+    )
+
+    available_header = tk.Label(
+        inner_frame,
+        text="Available",
+        font=("Segoe UI", 14, "bold")
+    )
+
+    # Headers
+    reorder_header.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+    reorder.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 20))
+
+    out_of_stock_header.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+    outOfStockConsumables.grid(row=3, column=0, sticky="nsew", padx=10, pady=10)
+    outOfStockNonConsumables.grid(row=3, column=1, sticky="nsew", padx=10, pady=10)
+
+    available_header.grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
+    availableConsumables.grid(row=5, column=0, sticky="nsew", padx=10, pady=10)
+    availableNonConsumables.grid(row=5, column=1, sticky="nsew", padx=10, pady=10)
+    
+
     inner_frame.grid_columnconfigure(0, weight=1)
     inner_frame.grid_columnconfigure(1, weight=1)
-    inner_frame.grid_rowconfigure(0, weight=1)
-    inner_frame.grid_rowconfigure(1, weight=1)
-    inner_frame.grid_rowconfigure(2, weight=1)  # for reorder row
 
+    for i in range(6):
+        inner_frame.grid_rowconfigure(i, weight=1)
+    
     def _on_mousewheel(event):
         canvas.yview_scroll(int(-1*(event.delta/120)), "units")
     
@@ -256,7 +237,7 @@ def analytics_content(root):
 def nav(root):
     DB.init_db()
 
-    root.title("ALS Inventory App")
+    root.title("ALS Inventory Manager")
     root.geometry("1200x700")
 
     # Create Notebook (tab container)
@@ -271,12 +252,31 @@ def nav(root):
     notebook.add(analytics_tab, text="Analytics")
     notebook.add(database_manager_tab, text="Database Manager")
 
-    # Add content inside tabs
-    database_manager_content(database_manager_tab)
+    # Initial load
     analytics_content(analytics_tab)
+    database_manager_content(database_manager_tab)
+
+    # ---------------- RELOAD HANDLER ----------------
+    def on_tab_changed(event):
+        selected_tab_id = notebook.select()
+        selected_frame = notebook.nametowidget(selected_tab_id)
+
+        # Clear tab contents
+        for child in selected_frame.winfo_children():
+            child.destroy()
+
+        # Reload correct content
+        if selected_frame == analytics_tab:
+            analytics_content(analytics_tab)
+
+        elif selected_frame == database_manager_tab:
+            database_manager_content(database_manager_tab)
+
+    notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
 
     root.mainloop()
 
 if __name__ == "__main__":
     root = tk.Tk()
+    style = ttk.Style()
     run_with_error_handling(root, nav, root)
