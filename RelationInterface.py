@@ -2,6 +2,7 @@ import sqlite3
 import pandas as pd  # for export to Excel
 from typing import List, Dict, Any
 import DB
+from datetime import datetime
 
 class RelationInterface:
     def __init__(self, relation_name: str, default_search_text: str, simple_search_field: str,
@@ -26,26 +27,12 @@ class RelationInterface:
         except IndexError:
             raise ValueError(f"Item index {item_index} out of range")
     
-    def on_item_updated(self, item_index: int, item_details: Dict[str, Any]):
-        """Update the row in the database using DB.update_item"""
+    def get_item(self, item_index):
         try:
-            item = self.curr_results[item_index]
+            return self.curr_results[item_index]
         except IndexError:
             raise ValueError(f"Item index {item_index} out of range")
 
-        # Use the DB.update_item function
-        success, error = DB.update_item(
-            table=self.relation_name,
-            row_id=item["id"],   # assuming every row has 'id' primary key
-            data=item_details
-        )
-
-        if not success:
-            raise ValueError(f"Failed to update: {error}")
-
-        # Refresh current results
-        self.curr_results = self.on_search_clicked()
-    
     def on_item_updated(self, item_index: int, item_details: Dict[str, Any]):
         """Update the row in the database with new details"""
         try:
@@ -53,12 +40,12 @@ class RelationInterface:
         except IndexError:
             raise ValueError(f"Item index {item_index} out of range")
 
+        self.validate_date_inputs(item_details)
         # Build UPDATE statement
         set_clause = ", ".join([f"{col}=?" for col in item_details.keys()])
-        params = list(item_details.values())
-        params.append(item[self.simple_search_field])  # WHERE condition
-
-        query = f"UPDATE {self.relation_name} SET {set_clause} WHERE {self.simple_search_field}=?"
+        where_clause = " AND ".join([f"{col}=?" for col in item.keys()])
+        params = list(item_details.values()) + list(item.values())
+        query = f"UPDATE {self.relation_name} SET {set_clause} WHERE {where_clause}"
 
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA foreign_keys = ON;")
@@ -74,9 +61,10 @@ class RelationInterface:
             item = self.curr_results[item_index]
         except IndexError:
             raise ValueError(f"Item index {item_index} out of range")
-
-        query = f"DELETE FROM {self.relation_name} WHERE {self.simple_search_field}=?"
-        params = [item[self.simple_search_field]]
+        
+        where_clause = " AND ".join([f"{col}=?" for col in item.keys()])
+        query = f"DELETE FROM {self.relation_name} WHERE {where_clause}"
+        params = list(item.values())
 
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA foreign_keys = ON;")
@@ -88,6 +76,7 @@ class RelationInterface:
     
     def on_create_item_clicked(self, details: dict):
         """Insert a new row into the database. Returns (status, user_message, error_details)."""
+        self.validate_date_inputs(details)
         columns = ", ".join(details.keys())
         placeholders = ", ".join(["?"] * len(details))
         params = list(details.values())
@@ -99,9 +88,29 @@ class RelationInterface:
             cursor.execute(query, params)
             conn.commit()
 
-        # Update current results after successful insert
         self.curr_results = self.on_search_clicked()
     
+    def validate_date_inputs(self, details):
+
+        def is_valid_date(value: str) -> bool:
+            try:
+                datetime.strptime(value, "%Y-%m-%d")
+                return True
+            except (ValueError, TypeError):
+                return False
+
+        col_types = DB.get_column_types(self.relation_name)
+
+        for key, value in details.items():
+            expected_type = col_types.get(key)
+
+            if expected_type == "date":
+                if not is_valid_date(value) and value != "":
+                    raise ValueError(
+                        f"Invalid date. Make sure {key} has the format YYYY-MM-DD and is a real date."
+                    )
+        return True
+
     def on_search_clicked(self) -> List[Dict[str, Any]]:
         query = f"SELECT * FROM {self.relation_name}"
         clauses = []

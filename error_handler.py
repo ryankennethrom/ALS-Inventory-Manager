@@ -2,64 +2,60 @@ from error_ui import show_error_ui
 import traceback
 import sqlite3
 
-def humanize_sqlite_error(e: Exception) -> tuple[str, str]:
+def humanize_error(e: Exception) -> tuple[str, str]:
     msg = str(e)
 
-    if isinstance(e, sqlite3.IntegrityError):
-        if "UNIQUE constraint failed" in msg:
-            return (
-                "Duplicate value",
-                "This record already exists. Please use a unique value."
-            )
+    out = {"Short": "Unknown Error", "Details":msg}
 
-        if "FOREIGN KEY constraint failed" in msg:
-            return (
-                "Invalid reference",
-                "The selected item does not exist or was deleted."
-            )
+    if "UNIQUE constraint failed: Products.ProductName" in msg:
+        out["Short"]="This product name already exists in the database."
+    
+    elif "UNIQUE constraint failed: Products.AlsItemNumber" in msg:
+        out["Short"]="This ALS item number already exists in the database."
+    
+    elif "cannot store TEXT value in REAL column Products.UnitPrice" in msg:
+        out["Short"]="Unit Price must be a number greater than or equal to zero."
+    
+    elif "Cannot add consumable log for a non-consumable product" in msg:
+        out["Short"]="The product is as a non-consumable. Please log it in Non-Consumable logs."
+    
+    elif "CHECK constraint failed: Alert >= 0" in msg:
+        out["Short"]="Alert must be greater than or equal to zero."
+    
+    elif "CHECK constraint failed: IsConsumable IN ('n', 'y')" in msg:
+        out["Short"]="IsConsumable must be either 'n' or 'y'."
 
-        if "NOT NULL constraint failed" in msg:
-            field = msg.split(":")[-1].strip()
-            return (
-                "Missing required field",
-                f"The field '{field}' must not be empty."
-            )
+    elif "ValueError: Invalid date" in msg:
+        out["Short"]="Invalid date. Make sure Date has the format YYYY-MM-DD and is a real date."
 
-        if "CHECK constraint failed" in msg:
-            return (
-                "Invalid value",
-                "One or more values do not meet the required conditions."
-            )
+    elif "CHECK constraint failed: length(Initials) BETWEEN 2 AND 5" in msg:
+        out["Short"]="Initials must be between 2 and 5 characters."
 
-    if isinstance(e, sqlite3.OperationalError):
-        if "database is locked" in msg:
-            return (
-                "Database busy",
-                "Another operation is using the database. Please try again."
-            )
+    elif "sqlite3.IntegrityError: CHECK constraint failed: ActionType IN ('Received', 'Opened')" in msg:
+        out["Short"]="Action Type must be 'Received' or 'Opened'."
+    
+    elif "FOREIGN KEY constraint failed" in msg:
+        out["Short"]="Logs must reference an existing product name."
+    
+    elif "CHECK constraint failed: ( OpenedInitials == '' AND DateOpened == '' ) or (OpenedInitials != '' AND DateOpened != '')" in msg:
+        out["Short"]="OpenedInitials and DateOpened must both have values."
+    
+    return (out["Short"],out["Details"])
 
-        if "no such table" in msg or "no such column" in msg:
-            return (
-                "Internal error",
-                "The application is out of sync with the database schema."
-            )
-
-    return (
-        "Database error",
-        msg  # fallback to raw details
-    )
-
-def run_with_error_handling(func, *args, **kwargs):
-    """
-    Run any function safely and return:
-        status_code: "ok" or "error"
-        result: function result or None
-        error_details: traceback if error or None
-    Shows error UI automatically if an exception occurs.
-    """
+def run_with_error_handling(master, func, *args, **kwargs):
     try:
         result = func(*args, **kwargs)
-        return "ok", result, None
+        payload = {
+                "status": "Ok",
+                "result": result
+        }
+        return payload
     except Exception as e:
-        short, details = humanize_sqlite_error(e)
-        return "error", None, {"short":short, "details": details}
+        short, details = humanize_error(traceback.format_exc())
+        print(details)
+        show_error_ui(short, details, master) 
+        payload = {
+                "status": "Error",
+                "result": "None"
+        }
+        return payload

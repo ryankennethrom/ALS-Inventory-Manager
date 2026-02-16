@@ -10,26 +10,6 @@ def connect():
     conn.execute("PRAGMA foreign_keys = ON;")  # ensure FK checks
     return conn
 
-def update(table, row_id, data):
-    """
-    Update a row in `table` by id.
-    Returns: (success: bool, error_message: str)
-    """
-    columns = ", ".join(f"{col}=?" for col in data.keys())
-    values = list(data.values())
-    values.append(row_id)
-    query = f"UPDATE {table} SET {columns} WHERE id=?"
-
-    try:
-        with connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, values)
-        return True, ""
-    except sqlite3.IntegrityError as e:
-        return False, str(e)
-    except Exception as e:
-        return False, str(e)
-
 def init_db(db_path=db_path):
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON;")
@@ -40,69 +20,119 @@ def init_db(db_path=db_path):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Products (
         ProductName TEXT PRIMARY KEY,
-        AlsItem TEXT UNIQUE,
+        AlsItemNumber TEXT UNIQUE,
         UnitPrice REAL NOT NULL CHECK (UnitPrice >= 0),
         UnitOfMeasure TEXT NOT NULL,
         ItemDescription TEXT NOT NULL,
         Station TEXT NOT NULL,
-        IsConsumable INTEGER NOT NULL CHECK (IsConsumable IN (0, 1)),
-        Alert INTEGER NOT NULL CHECK (Alert IN (0, 1)),
-        VendorItem TEXT,
+        IsConsumable TEXT NOT NULL CHECK (IsConsumable IN ('n', 'y')),
+        Alert INTEGER NOT NULL CHECK (Alert >= 0),
+        VendorItemNumber TEXT,
         Vendor TEXT NOT NULL,
         PO TEXT
     ) STRICT;
     """)
 
     # ---------- Consumable Logs ----------
-    
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ConsumableLogs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ProductName TEXT NOT NULL,
-        LOT TEXT NOT NULL,
+        CREATE TABLE IF NOT EXISTS ConsumableLogs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ProductName TEXT NOT NULL,
+            LOT TEXT NOT NULL,
 
-        -- Dates for lifecycle
-        DateReceived TEXT NOT NULL CHECK(DateReceived GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'),
-        ReceivedInitials TEXT NOT NULL,
-        ExpiryDate TEXT NOT NULL CHECK(ExpiryDate GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'),
+            -- Dates for lifecycle
+            DateReceived TEXT NOT NULL
+                CHECK (
+                    DateReceived GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND DateReceived = date(DateReceived)
+                ),
 
-        DateOpened TEXT CHECK(DateOpened IS NULL OR DateOpened GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'),
-        OpenedInitials TEXT,
+            ReceivedInitials TEXT NOT NULL 
+                CHECK (
+                    ReceivedInitials != ''
+                ),
 
-        DateFinished TEXT CHECK(DateFinished IS NULL OR DateFinished GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'),
-        FinishedInitials TEXT,
+            ExpiryDate TEXT NOT NULL
+                CHECK (
+                    ExpiryDate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND ExpiryDate = date(ExpiryDate)
+                ),
 
-        -- Lifecycle constraints
-        CHECK (
-            (DateOpened IS NULL AND DateFinished IS NULL)
-            OR (DateOpened IS NOT NULL AND DateFinished IS NULL)
-            OR (DateOpened IS NOT NULL AND DateFinished IS NOT NULL)
-        ),
+            DateOpened TEXT
+                CHECK (
+                    DateOpened == '' OR
+                    (
+                        DateOpened GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                        AND DateOpened = date(DateOpened)
+                    )
+                ),
 
-        FOREIGN KEY (ProductName)
-            REFERENCES Products(ProductName)
-            ON DELETE RESTRICT
-    ) STRICT;
+            OpenedInitials TEXT
+                CHECK (
+                    ( OpenedInitials == '' AND DateOpened == '' ) or (OpenedInitials != '' AND DateOpened != '')
+                ),
+
+            DateFinished TEXT
+                CHECK (
+                    DateFinished == '' OR
+                    (
+                        DateFinished GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                        AND DateFinished = date(DateFinished)
+                    )
+                ),
+
+            FinishedInitials TEXT
+                CHECK (
+                    (FinishedInitials == '' AND DateFinished == '') or (FinishedInitials != '' AND DateFinished != '')
+                ),
+
+            CreatedDateTime TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+
+            -- Lifecycle state consistency
+            CHECK (
+                (DateOpened == '' AND DateFinished == '')
+                OR (DateOpened != '' AND DateFinished == '')
+                OR (DateOpened != '' AND DateFinished != '')
+            ),
+
+            FOREIGN KEY (ProductName)
+                REFERENCES Products(ProductName)
+                ON DELETE RESTRICT
+        ) STRICT;
     """)
-    
+   
     # ---------- Non-consumable logs ----------
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS NonConsumableLogs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ProductName TEXT NOT NULL,
-        Quantity INTEGER NOT NULL CHECK (Quantity > 0),
-        Date TEXT NOT NULL CHECK(Date GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'),
-        Initials TEXT NOT NULL CHECK (length(Initials) BETWEEN 2 AND 5),
-        ActionType TEXT NOT NULL CHECK (
-            ActionType IN ('Received', 'Opened')
-        ),
-        FOREIGN KEY (ProductName)
-            REFERENCES Products(ProductName)
-            ON DELETE RESTRICT
-    ) STRICT;
-    """)
+        CREATE TABLE IF NOT EXISTS NonConsumableLogs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ProductName TEXT NOT NULL,
 
-    # ---------- Trigger to enforce IsConsumable = 0 ----------
+            Quantity INTEGER NOT NULL
+                CHECK (Quantity > 0),
+
+            DateReceived TEXT NOT NULL
+                CHECK (
+                    DateReceived GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND DateReceived = date(DateReceived)
+                ),
+
+            Initials TEXT NOT NULL
+                CHECK (length(Initials) BETWEEN 2 AND 5),
+
+            ActionType TEXT NOT NULL
+                CHECK (
+                    ActionType IN ('Received', 'Opened')
+                ),
+
+            CreatedDateTime TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+
+            FOREIGN KEY (ProductName)
+                REFERENCES Products(ProductName)
+                ON DELETE RESTRICT
+        ) STRICT;
+    """)
+    
+    # ---------- Triggers ----------
     cursor.execute("""
     CREATE TRIGGER IF NOT EXISTS check_non_consumable_product
     BEFORE INSERT ON NonConsumableLogs
@@ -110,13 +140,12 @@ def init_db(db_path=db_path):
     BEGIN
         SELECT
             CASE
-                WHEN (SELECT IsConsumable FROM Products WHERE ProductName = NEW.ProductName) != 0
+                WHEN (SELECT IsConsumable FROM Products WHERE ProductName = NEW.ProductName) LIKE 'y'
                 THEN RAISE(ABORT, 'Cannot add non-consumable log for a consumable product')
             END;
     END;
     """)
 
-    # ---------- Trigger to enforce IsConsumable = 1 for ConsumableLogs ----------
     cursor.execute("""
     CREATE TRIGGER IF NOT EXISTS check_consumable_product
     BEFORE INSERT ON ConsumableLogs
@@ -124,10 +153,123 @@ def init_db(db_path=db_path):
     BEGIN
         SELECT
             CASE
-                WHEN (SELECT IsConsumable FROM Products WHERE ProductName = NEW.ProductName) != 1
+                WHEN (SELECT IsConsumable FROM Products WHERE ProductName = NEW.ProductName) LIKE 'n'
                 THEN RAISE(ABORT, 'Cannot add consumable log for a non-consumable product')
             END;
     END;
+    """)
+
+
+    cursor.execute("DROP TRIGGER IF EXISTS limit_nonconsumable_opened;")
+
+    cursor.execute("""
+    CREATE TRIGGER limit_nonconsumable_opened
+    BEFORE INSERT ON NonConsumableLogs
+    FOR EACH ROW
+    WHEN NEW.ActionType = 'Opened'
+    BEGIN
+        -- Compute total received
+        SELECT
+            CASE
+                WHEN (
+                    (SELECT COALESCE(SUM(Quantity), 0)
+                     FROM NonConsumableLogs
+                     WHERE ProductName = NEW.ProductName AND ActionType = 'Received')
+                    <
+                    (SELECT COALESCE(SUM(Quantity), 0)
+                     FROM NonConsumableLogs
+                     WHERE ProductName = NEW.ProductName AND ActionType = 'Opened')
+                    + NEW.Quantity
+                )
+                THEN RAISE(ABORT, 'Cannot open more than total received quantity')
+            END;
+    END;
+    """)
+
+    # ----------- Views ------------------
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS OutOfStockConsumables AS
+    SELECT p.ProductName
+    FROM Products p
+    WHERE p.IsConsumable = 'y'
+    AND (
+        SELECT COUNT(*)
+        FROM ConsumableLogs l2
+        WHERE l2.ProductName = p.ProductName
+          AND l2.DateFinished = ''
+    ) = 0;
+    """)
+    
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS AvailableConsumables AS
+    SELECT *
+    FROM ConsumableLogs
+    WHERE DateFinished == ''
+    ORDER BY CreatedDateTime ASC;
+    """)
+    
+    cursor.execute("""
+    DROP VIEW IF EXISTS OutOfStockNonConsumables;
+    """)
+    
+    # Create the new view
+    cursor.execute("""
+    CREATE VIEW OutOfStockNonConsumables AS
+    SELECT
+        p.ProductName,
+        COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityReceived,
+        COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityOpened
+    FROM Products p
+    LEFT JOIN NonConsumableLogs l
+        ON p.ProductName = l.ProductName
+    WHERE p.IsConsumable = 'n'
+    GROUP BY p.ProductName
+    HAVING TotalQuantityReceived <= TotalQuantityOpened;
+    """)
+
+    cursor.execute("""
+    DROP VIEW IF EXISTS AvailableNonConsumables;
+    """)
+ 
+    cursor.execute("""
+    CREATE VIEW AvailableNonConsumables AS
+    SELECT
+        p.ProductName,
+        COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityReceived,
+        COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityOpened,
+        COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0)
+            - COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable
+    FROM Products p
+    LEFT JOIN NonConsumableLogs l
+        ON p.ProductName = l.ProductName
+    WHERE p.IsConsumable = 'n'
+    GROUP BY p.ProductName
+    HAVING TotalQuantityReceived > TotalQuantityOpened;
+    """)
+
+    cursor.execute("""
+    DROP VIEW IF EXISTS ReOrderList;
+    """)
+
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS ReOrderList AS
+    SELECT c.ProductName, COUNT(*) AS TotalQuantityAvailable, p.Alert
+    FROM Products p
+    LEFT JOIN ConsumableLogs c ON c.ProductName = p.ProductName
+    WHERE c.DateFinished == ''
+    GROUP BY c.ProductName
+    HAVING TotalQuantityAvailable <= p.Alert
+
+    UNION ALL
+
+    SELECT
+        p.ProductName,
+        COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
+        p.Alert
+    FROM Products p
+    LEFT JOIN AvailableNonConsumables n
+        ON n.ProductName = p.ProductName
+    WHERE p.IsConsumable = 'n';
     """)
 
     conn.commit()

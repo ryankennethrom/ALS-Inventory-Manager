@@ -1,11 +1,14 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, font
+import tkinter.font as tkfont
 import DB
 from RelationInterface import RelationInterface
 import random
 import string
 from error_ui import show_error_ui
 from error_handler import run_with_error_handling
+from tkinter import messagebox
+import time
 
 def generate_random_name(length=6):
     letters = string.ascii_uppercase
@@ -14,14 +17,43 @@ def generate_random_name(length=6):
     return f"PROD-{random_part}"
 
 class RelationWidget(ttk.LabelFrame):
-    def __init__(self, master, relation_interface, exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
+    def __init__(self, master, relation_interface, min_width=400, min_height=200, is_view=False, exclude_fields_on_update=[], exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
         super().__init__(master, text=title, padding=padding, **kwargs)
         self.relation = relation_interface
+        self.exclude_fields_on_update = exclude_fields_on_update
         self.exclude_fields_on_show = exclude_fields_on_show
+        self.update_item_columns = [col for col in DB.get_columns(self.relation.relation_name) if col not in exclude_fields_on_update] 
         self.show_columns = [col for col in DB.get_columns(self.relation.relation_name) if col not in exclude_fields_on_show]
         self.create_item_columns = [col for col in DB.get_columns(self.relation.relation_name) if col not in exclude_fields_on_create]
+        self.is_view = is_view
+        self.min_width = min_width
+        self.min_height = min_height
         self.create_widgets()
+        self.popup = None
         self.update_table()
+
+        def auto_resize_columns(tree, results):
+            f = tkfont.Font()  # default font of Treeview
+            max_width = dict()
+            padding = 0
+
+            # Include header width
+            for col in DB.get_columns(self.relation.relation_name):
+                max_width[col] = f.measure(col + " " * padding)  # small padding
+
+            # Include row values
+            for item in results:
+                for col, val in item.items():
+                    width = f.measure(str(val) + " " * padding)  # small padding
+                    if width > max_width[col]:
+                        max_width[col] = width
+
+            # Set column widths
+            for col in tree["columns"]:
+                if col in max_width:
+                    tree.column(col, width=max_width[col])
+
+        auto_resize_columns(self.tree, self.relation.curr_results)
 
     def create_widgets(self):
         # Configure internal grid
@@ -37,7 +69,7 @@ class RelationWidget(ttk.LabelFrame):
         self.search_entry.bind("<Return>", self.search)
 
         # Regular Search button
-        ttk.Button(self.search_frame, text="Search", command=self.search).grid(row=0, column=1, padx=5)
+        ttk.Button(self.search_frame, text=self.relation.simple_search_field, command=self.search).grid(row=0, column=1, padx=5)
 
         # Advanced Search button
         ttk.Button(self.search_frame, text="Advanced Search", command=self.advanced_search).grid(row=0, column=2, padx=5)
@@ -46,7 +78,7 @@ class RelationWidget(ttk.LabelFrame):
         self.search_frame.grid_columnconfigure(0, weight=1)
 
         # Tree Frame
-        self.tree_frame = tk.Frame(self, bd=1, relief="solid", width=500)
+        self.tree_frame = tk.Frame(self, bd=1, relief="solid", width=self.min_width, height=self.min_height)
         self.tree_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
         self.tree_frame.grid_propagate(False)
@@ -79,25 +111,31 @@ class RelationWidget(ttk.LabelFrame):
         # Buttons Frame
         self.button_frame = ttk.Frame(self)
         self.button_frame.grid(row=2, column=0, pady=5)
-        ttk.Button(self.button_frame, text="Add", command=self.add).pack(side=tk.LEFT, padx=5)
-        ttk.Button(self.button_frame, text="Delete", command=self.delete).pack(side=tk.LEFT, padx=5)
+        if not self.is_view:
+            ttk.Button(self.button_frame, text="Add", command=self.add).pack(side=tk.LEFT, padx=5) 
+            self.tree.bind("<Double-1>", self.on_double_click)
         ttk.Button(self.button_frame, text="Export", command=lambda: self.relation.export_as_excel(exclude_columns=self.exclude_fields_on_show, output_path=f"{self.relation.relation_name}.xlsx")).pack(side=tk.LEFT, padx=5)
-        self.tree.bind("<Double-1>", self.on_double_click)
 
     # -------------------- Actions --------------------
     def advanced_search(self):
-        popup = tk.Toplevel(self)
+        if self.popup is not None and self.popup.winfo_exists() == 1:
+            return
+
+        self.popup = tk.Toplevel(self)
+        popup = self.popup
         popup.title("Advanced Search")
         popup.resizable(False, False)
         popup.transient(self)
         popup.grab_set()
+        popup.attributes("-topmost", True)
+
 
         frame = ttk.Frame(popup, padding=20)
         frame.grid(sticky="nsew")
 
         text_predicates = ["startswith", "contains", "endswith", "exactly"]
         number_predicates = ["equal", "not equal", "less than", "greater than", "less than or equal", "greater than or equal"]
-        date_predicates = ["last 24 hours", "last week", "last 30 days", "last 6 months", "last year"]
+        date_predicates = ["last 24 hours", "last week", "last 30 days", "last 6 months", "last year", "all time"]
 
         # Fetch schema info
         table_columns = DB.get_columns(self.relation.relation_name)
@@ -184,6 +222,7 @@ class RelationWidget(ttk.LabelFrame):
                 }
 
                 ranges = {
+                    "all time": None,
                     "last 24 hours": "-1 day",
                     "last week": "-7 days",
                     "last 30 days": "-30 days",
@@ -193,10 +232,11 @@ class RelationWidget(ttk.LabelFrame):
 
                 modifier = ranges[pred]
 
-                out["clauses"].append(
-                    f"{col} >= datetime('now', ?)"
-                )
-                out["params"].append(modifier)
+                if modifier is not None:
+                    out["clauses"].append(
+                        f"{col} >= datetime('now', ?)"
+                    )
+                    out["params"].append(modifier)
 
                 return out
             else:
@@ -258,7 +298,7 @@ class RelationWidget(ttk.LabelFrame):
             # ---------------- DATE ----------------
             elif "DATE" in col_type:
                 pred = ttk.Combobox(frame, values=date_predicates, state="readonly", width=18)
-                pred.set(date_predicates[2])  # default: last 30 days
+                pred.set(date_predicates[-1])  # default: last 30 days
                 if col in self.relation.filter_dict:
                     date_filter = self.relation.filter_dict[col]
                     pred.set(date_filter["filterValue"])
@@ -283,7 +323,6 @@ class RelationWidget(ttk.LabelFrame):
                 value = (None if entry is None else entry.get().strip())
                 flter = get_filter_json(col, pred.get(), value)
                 filters[flter["fieldName"]] = flter
-
             self.relation.on_filter_changed(filters)
 
             self.relation.curr_results = self.relation.on_search_clicked()
@@ -316,55 +355,91 @@ class RelationWidget(ttk.LabelFrame):
             self.tree.delete(row)
         for item in self.relation.curr_results:
             self.tree.insert("", tk.END, values=[item[col] for col in self.show_columns])
-
-    def update_item(self, item_index: int, new_data: dict):
-        """
-        Update a row in the table from the InventoryWidget GUI.
-        Delegates to RelationInterface.on_item_updated()
-        """
-        try:
-            self.relation.on_item_updated(item_index, new_data)
-        except ValueError as e:
-            tk.messagebox.showerror("Update Error", str(e))
-
+        
     def on_double_click(self, event):
         selected_item = self.tree.focus()  # get selected item ID
         if not selected_item:
             return
 
-        values = self.tree.item(selected_item, "values")
-        # Assuming your tree columns match your table columns
-        columns = DB.get_columns(self.relation.relation_name)  # or your list of columns
-        data = dict(zip(columns, values))
+        selected_index = self.tree.index(self.tree.selection()[0])  # numeric index
+        data = self.relation.get_item(selected_index)
 
         self.open_update_popup(selected_item, data)
 
     def open_update_popup(self, item_id, data):
-        popup = tk.Toplevel(self)
+        if self.popup is not None and self.popup.winfo_exists() == 1:
+            return
+        self.popup = tk.Toplevel(self)
+        popup = self.popup
         popup.title("Update Item")
         popup.resizable(False, False)
+        popup.attributes("-topmost", True)
+
 
         frame = ttk.Frame(popup, padding=20)
         frame.pack(fill="both", expand=True)
 
         entries = {}
+        
         for i, col in enumerate(data.keys()):
+            if col in self.exclude_fields_on_update:
+                continue
             ttk.Label(frame, text=f"{col}:").grid(row=i, column=0, sticky="e", pady=2)
             entry = ttk.Entry(frame)
             entry.grid(row=i, column=1, pady=2, padx=5)
             entry.insert(0, data[col])  # pre-fill current value
             entries[col] = entry
 
-        def save_changes():
-            new_data = {col: entries[col].get() for col in data.keys()}
+        def save_changes(event=None):
+            new_data = {col: entries[col].get() for col in data.keys() if col in entries}
             selected_index = self.tree.index(self.tree.selection()[0])  # numeric index
-            self.update_item(selected_index, new_data)
-            self.update_table()
-            popup.destroy()
+            result = run_with_error_handling(popup, self.relation.on_item_updated, selected_index, new_data)
+            if result["status"] == "Ok":
+                self.update_table()
+                popup.destroy()
 
-        ttk.Button(frame, text="Save", command=save_changes).grid(
-            row=len(data)+1, column=0, columnspan=2, pady=10
-        )
+        def delete_item():
+            selected = self.tree.selection()
+            if not selected:
+                return  # Nothing selected, do nothing
+
+            index = self.tree.index(selected[0])
+
+            # Ask user for confirmation
+            confirm = messagebox.askyesno(
+                "Confirm Delete",
+                "Are you sure you want to delete this item?",
+                parent=popup
+            )
+
+            if confirm:
+                # Only run deletion if user clicked 'Yes'
+                result = run_with_error_handling(
+                    self.master,
+                    self.relation.on_item_delete_clicked,
+                    index
+                )
+
+                if result["status"] == "Ok":
+                    self.update_table()
+                    popup.destroy()
+        
+        # Create an inner frame to hold both buttons
+        btn_frame = ttk.Frame(frame)
+        btn_frame.grid(row=len(data)+1, column=0, columnspan=2, pady=20)  # span two columns
+
+        # Make buttons the same size
+        btn_width = 12
+
+        update_btn = ttk.Button(btn_frame, text="Update", width=btn_width, command=save_changes)
+        delete_btn = ttk.Button(btn_frame, text="Delete", width=btn_width, command=delete_item)
+
+        # Pack them side by side
+        update_btn.pack(side="left")
+        delete_btn.pack(side="left", padx=(5,0))  # small space between buttons
+
+        popup.bind("<Return>", save_changes)
+
 
         # Center popup over parent
         popup.update_idletasks()
@@ -379,31 +454,40 @@ class RelationWidget(ttk.LabelFrame):
         self.update_table()
 
     def add(self):
-        popup = tk.Toplevel(self)
-        popup.title("Add New Item")
+        if self.popup is not None and self.popup.winfo_exists() == 1:
+            return
+        self.popup = tk.Toplevel(self) 
+        popup = self.popup
+        popup.title("Add A New Item")
         popup.resizable(False, False)
+        popup.focus_set() 
+        popup.attributes("-topmost", True)
 
         frame = ttk.Frame(popup, padding=20)
         frame.pack()
 
         entries = {}
+        is_first_field = True
         for i, col in enumerate(DB.get_columns(self.relation.relation_name)):
             if self.create_item_columns and col not in self.create_item_columns:
                 continue
             ttk.Label(frame, text=f"{col}:").grid(row=i, column=0, sticky="e", pady=2)
             entry = ttk.Entry(frame)
+            if is_first_field == True:
+                entry.focus_set()
+                is_first_field = False
             entry.grid(row=i, column=1, pady=2, padx=5)
             entries[col] = entry
 
-        def save_item():
+        def save_item(event=None):
             details = {col: entries[col].get() for col in self.create_item_columns}
-            status, result, error = run_with_error_handling(self.relation.on_create_item_clicked, details)
-            if status == "error":
-                show_error_ui(error["short"], error["details"], self.master)
-            self.update_table()
-            popup.destroy()
+            result = run_with_error_handling(popup, self.relation.on_create_item_clicked, details)
+            if result["status"] == "Ok":
+                self.update_table()
+                popup.destroy() 
 
-        ttk.Button(frame, text="Save", command=save_item).grid(row=len(self.show_columns)+1, column=0, columnspan=2, pady=10)
+        ttk.Button(frame, text="Add Item", command=save_item).grid(row=len(self.show_columns)+1, column=0, columnspan=2, pady=10)
+        popup.bind("<Return>", save_item)
         # ---------- Center on parent widget ----------
         popup.update_idletasks()  # calculate size
 
@@ -429,6 +513,6 @@ class RelationWidget(ttk.LabelFrame):
         if not selected:
             return
         index = self.tree.index(selected[0])
-        self.relation.on_item_delete_clicked(index)
+        run_with_error_handling(self.master, self.relation.on_item_delete_clicked, index)
         self.update_table()
 
