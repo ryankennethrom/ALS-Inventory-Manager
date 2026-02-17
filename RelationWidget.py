@@ -477,8 +477,6 @@ class RelationWidget(ttk.LabelFrame):
         update_btn.pack(side="left")
         delete_btn.pack(side="left", padx=(5,0))  # small space between buttons
 
-        popup.bind("<Return>", save_changes)
-
 
         # Center popup over parent
         popup.update_idletasks()
