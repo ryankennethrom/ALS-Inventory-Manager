@@ -43,14 +43,12 @@ def database_manager_content(root):
         relation_name="Products",
         default_search_text="",
         simple_search_field="ProductName",
-        default_filters=[]
     )
 
     consumables = RelationInterface(
         relation_name="ConsumableLogs",
         default_search_text="",
         simple_search_field="ProductName",
-        default_filters=[]
     )
 
     consumables.on_create_item_clicked = types.MethodType(create_item_quantity_times, consumables)
@@ -59,7 +57,6 @@ def database_manager_content(root):
         relation_name="NonConsumableLogs",
         default_search_text="",
         simple_search_field="ProductName",
-        default_filters=[]
     )
 
     # ---------- InventoryTable widgets ----------
@@ -116,35 +113,30 @@ def analytics_content(root):
         relation_name="OutOfStockConsumables",
         default_search_text="",
         simple_search_field="ProductName",
-        default_filters=[]
     )
 
     outOfStockNonConsumablesRI = RelationInterface(
         relation_name="OutOfStockNonConsumables",
         default_search_text="",
         simple_search_field="ProductName",
-        default_filters=[]
     )
 
     availableConsumablesRI = RelationInterface(
         relation_name="AvailableConsumables",
         default_search_text="",
         simple_search_field="ProductName",
-        default_filters=[]
     )
 
     availableNonConsumablesRI = RelationInterface(
         relation_name="AvailableNonConsumables",
         default_search_text="",
         simple_search_field="ProductName",
-        default_filters=[]
     )
 
     reorder_ri = RelationInterface(
         relation_name="ReOrderList",
         default_search_text="",
         simple_search_field="ProductName",
-        default_filters=[]
     )
 
     # ------------------ Add RelationWidgets in 2x2 grid ------------------

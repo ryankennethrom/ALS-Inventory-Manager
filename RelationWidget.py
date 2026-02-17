@@ -20,6 +20,7 @@ def generate_random_name(length=6):
 class RelationWidget(ttk.LabelFrame):
     def __init__(self, master, relation_interface, min_width=400, min_height=200, is_view=False, exclude_fields_on_update=[], exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
         super().__init__(master, text=title, padding=padding, **kwargs)
+        self.title=title
         self.relation = relation_interface
         self.exclude_fields_on_update = exclude_fields_on_update
         self.exclude_fields_on_show = exclude_fields_on_show
@@ -33,6 +34,13 @@ class RelationWidget(ttk.LabelFrame):
         self.popup = None
         self.update_table()
 
+        style = ttk.Style()
+        style.configure("LightGrey.Treeview",
+                        background="#ADD8E6",       
+                        fieldbackground="#ADD8E6",
+                        bordercolor="#ADD8E6",
+                        foreground="black")
+        
         def auto_resize_columns(tree, results):
             f = tkfont.Font()  # default font of Treeview
             max_width = dict()
@@ -123,7 +131,8 @@ class RelationWidget(ttk.LabelFrame):
         self.button_frame = ttk.Frame(self)
         self.button_frame.grid(row=3, column=0, pady=5)
         if not self.is_view:
-            ttk.Button(self.button_frame, text="Add", command=self.add).pack(side=tk.LEFT, padx=5) 
+            ttk.Button(self.button_frame, text="Add", command=self.add).pack(side=tk.LEFT, padx=5)
+            ttk.Button(self.button_frame, text="Delete", command=self.delete).pack(side=tk.LEFT, padx=5)
             self.tree.bind("<Double-1>", self.on_double_click)
         ttk.Button(self.button_frame, text="Export", command=lambda: self.relation.export_as_excel(exclude_columns=self.exclude_fields_on_show, output_path=f"{self.relation.relation_name}.xlsx")).pack(side=tk.LEFT, padx=5)
 
@@ -331,12 +340,13 @@ class RelationWidget(ttk.LabelFrame):
         style = ttk.Style()
         
         def reset_filters():
+            self.relation.on_search_field_changed(self.relation.default_search_text)
+            self.search_entry.delete(0, tk.END)
+            self.search_entry.insert(0, self.relation.default_search_text)
             self.relation.on_filter_changed(self.relation.default_filters)
             self.relation.on_search_clicked()
             self.update_table()
-            popup.destroy()
-            advance_btn.configure(style="TButton")
-            
+            popup.destroy() 
 
         def apply_filters(event=None):
             filters = {}
@@ -349,7 +359,6 @@ class RelationWidget(ttk.LabelFrame):
             self.relation.curr_results = self.relation.on_search_clicked()
             self.update_table()
             popup.destroy()
-            advance_btn.configure(style=f"{self.relation.relation_name}AS.TButton")
 
         ttk.Button(button_frame, text="Apply", command=apply_filters).pack(side="left", padx=5)
         ttk.Button(button_frame, text="Reset", command=reset_filters).pack(side="left", padx=5)
@@ -379,7 +388,13 @@ class RelationWidget(ttk.LabelFrame):
             self.tree.delete(row)
         for item in self.relation.curr_results:
             self.tree.insert("", tk.END, values=[item[col] for col in self.show_columns])
-        
+        if self.relation.is_filter_default(): 
+            self.configure(text=f"{self.title}")
+            self.tree.configure(style="Treeview")
+        else:
+            self.configure(text=f"{self.title}  (Filtered)")
+            self.tree.configure(style="LightGrey.Treeview")
+
     def on_double_click(self, event):
         selected_item = self.tree.focus()  # get selected item ID
         if not selected_item:
@@ -418,9 +433,9 @@ class RelationWidget(ttk.LabelFrame):
             new_data = {col: entries[col].get() for col in data.keys() if col in entries}
             selected_index = self.tree.index(self.tree.selection()[0])  # numeric index
             result = run_with_error_handling(popup, self.relation.on_item_updated, selected_index, new_data)
-            if result["status"] == "Ok":
-                self.update_table()
-                popup.destroy()
+            self.update_table()
+            popup.destroy()
+
 
         def delete_item():
             selected = self.tree.selection()
@@ -533,10 +548,24 @@ class RelationWidget(ttk.LabelFrame):
         popup.geometry(f"+{x}+{y}")
 
     def delete(self):
-        selected = self.tree.selection()
-        if not selected:
-            return
-        index = self.tree.index(selected[0])
-        run_with_error_handling(self.master, self.relation.on_item_delete_clicked, index)
-        self.update_table()
+        # Ask user for confirmation
+        confirm = messagebox.askyesno(
+            "Confirm Delete",
+            "Are you sure you want to delete this item?",
+            parent=self
+        )
+
+        if confirm:
+            selected = self.tree.selection()
+            if not selected:
+                return
+            indexes = []
+            for item in selected:
+                index = self.tree.index(item)
+                indexes.append(index)
+
+            indexes.sort(reverse=True)
+            for index in indexes:
+                run_with_error_handling(self.master, self.relation.on_item_delete_clicked, index)
+            self.update_table()
 

@@ -1,25 +1,55 @@
+import os
+import sys
+import subprocess
 import sqlite3
 import pandas as pd  # for export to Excel
 from typing import List, Dict, Any
 import DB
 from datetime import datetime
+from openpyxl import load_workbook
+from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.utils import get_column_letter
+import copy
 
 class RelationInterface:
     def __init__(self, relation_name: str, default_search_text: str, simple_search_field: str,
-                 default_filters: List[Dict[str, Any]], db_path=DB.db_path):
+                 default_filters=dict(), db_path=DB.db_path):
         self.relation_name = relation_name
         self.db_path = db_path
         self.simple_search_field = simple_search_field
-        self.default_filters = default_filters
+        
         self.filter_dict = default_filters
-        self.search_field_text = default_search_text or ""
+        self.default_search_text = default_search_text or ""
+        self.search_field_text = self.default_search_text
+        self.on_search_field_changed(self.search_field_text)
+        self.default_filters = copy.deepcopy(self.filter_dict)
+        
         self.curr_results = self.on_search_clicked()  # initial load
-
+    
+    def is_filter_default(self):
+        def_str = str(self.default_filters)
+        cur_str =str(self.filter_dict)
+        return def_str == cur_str
+    
     def on_filter_changed(self, new_filter_dict):
+        new_filter_dict = copy.deepcopy(new_filter_dict)
+        new_filter_dict["simple_search"] = self.filter_dict["simple_search"]
         self.filter_dict = new_filter_dict
 
     def on_search_field_changed(self, text):
         self.search_field_text = text
+        if text != "":
+            self.filter_dict["simple_search"] = {
+                        "clauses": [f"{self.simple_search_field} LIKE ?"],
+                        "params":[f"{text}%"]
+            }
+        else:
+            self.filter_dict["simple_search"] = {
+                        "clauses": [],
+                        "params":[]
+            }
+        
+        
 
     def on_item_clicked(self, item_index: int) -> Dict[str, Any]:
         """Return the item at the given index from the current results"""
@@ -53,6 +83,8 @@ class RelationInterface:
             cursor = conn.cursor()
             cursor.execute(query, params)
             conn.commit()
+            if cursor.rowcount == 0:
+                raise ValueError(f"Item not found. Someone likely recently updated the item.")
 
         self.curr_results = self.on_search_clicked()  # refresh
 
@@ -112,29 +144,39 @@ class RelationInterface:
                     )
         return True
 
-    def on_search_clicked(self) -> List[Dict[str, Any]]:
-        query = f"SELECT * FROM {self.relation_name}"
+    def get_where_clauses_and_params(self):
         clauses = []
         params = []
-
-        # Add LIKE condition for simple search
-        if self.search_field_text:
-            clauses.append(f"{self.simple_search_field} LIKE ?")
-            params.append(f"{self.search_field_text}%")
-
-        # Add additional filters
-        if self.filter_dict:
-            for key in self.filter_dict.keys():
-                clauses += self.filter_dict[key]["clauses"]
-                params += self.filter_dict[key]["params"]
         
-        if clauses:
-            query += " WHERE " + " AND ".join(clauses)
 
+        for key in self.filter_dict.keys():
+            for string_clause in self.filter_dict[key]["clauses"]:
+                clauses += [f"{self.relation_name}.{string_clause}"]
+            params += self.filter_dict[key]["params"]
+        
+        def try_int(value):
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return value
+
+        for i in range(len(params)):
+            params[i] = try_int(params[i])
+
+        if clauses:
+            return ("WHERE "+ " AND ".join(clauses), params)
+        else:
+            return ("", [])
+
+    def on_search_clicked(self) -> List[Dict[str, Any]]:
+        where_clause, params = self.get_where_clauses_and_params()
+
+        query = f"SELECT * FROM {self.relation_name} "
+        
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA foreign_keys = ON;")
             cursor = conn.cursor()
-            cursor.execute(query, params)
+            cursor.execute(f"{query} {where_clause}", params)
             results = cursor.fetchall()
             columns = [desc[0] for desc in cursor.description]
 
@@ -144,12 +186,71 @@ class RelationInterface:
     def export_as_excel(self, exclude_columns=None, output_path="output.xlsx"):
         if exclude_columns is None:
             exclude_columns = []
+       
+        query, params = DB.get_expanded_query(self)
+        
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("PRAGMA foreign_keys = ON;")
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            data = cursor.fetchall()
 
-        data = self.on_search_clicked()  # filtered results
-        df = pd.DataFrame(data)
+            # Get column names from cursor.description
+            columns = [desc[0] for desc in cursor.description]
 
-        # Drop excluded columns (ignore if not present)
+
+        df = pd.DataFrame(data, columns=columns)
+
         df = df.drop(columns=exclude_columns, errors="ignore")
 
-        df.to_excel(output_path, index=False)
-        print(f"Exported {self.relation_name} to {output_path}")
+        # ---- Write starting at row 8 (7 empty rows above) ----
+        start_row = 7  # zero-indexed for pandas (7 means Excel row 8)
+        df.to_excel(output_path, index=False, startrow=start_row)
+
+        wb = load_workbook(output_path)
+        ws = wb.active
+
+        max_row = ws.max_row
+        max_col = ws.max_column
+
+        if max_row > start_row and max_col > 0:
+            header_row = start_row + 1  # Excel row number
+            table_range = f"A{header_row}:{get_column_letter(max_col)}{max_row}"
+
+            table = Table(displayName="ExportTable", ref=table_range)
+
+            style = TableStyleInfo(
+                name="TableStyleMedium1",
+                showFirstColumn=False,
+                showLastColumn=False,
+                showRowStripes=True,
+                showColumnStripes=False
+            )
+
+            table.tableStyleInfo = style
+            ws.add_table(table)
+
+        # ---- Generous Auto Resize Columns ----
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+
+            for cell in column:
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+
+            generous_padding = 6
+            ws.column_dimensions[column_letter].width = max_length + generous_padding
+
+        wb.save(output_path)
+
+        print(f"Exported {self.relation_name} to formatted table {output_path}")
+
+        # ---- Auto Open File ----
+        if sys.platform.startswith("darwin"):
+            subprocess.call(("open", output_path))
+        elif os.name == "nt":
+            os.startfile(output_path)
+        elif os.name == "posix":
+            subprocess.call(("xdg-open", output_path))
+

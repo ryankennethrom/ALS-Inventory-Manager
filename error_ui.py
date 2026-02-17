@@ -9,6 +9,7 @@ def show_error_ui(short: str, error_details: str = None, root: tk.Tk = None):
     popup = tk.Toplevel(root)
     popup.title("Error")
     popup.resizable(False, False)
+    popup.focus_set()
     popup.attributes("-topmost", True)
 
     # ---------- Frame ----------

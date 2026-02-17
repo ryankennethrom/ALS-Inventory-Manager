@@ -2,8 +2,8 @@ import sqlite3
 import os
 import re
 
-db_path = "Z:/InventoryAppData/inventory.db"
-# db_path = "inventory.db"
+# db_path = "Z:/InventoryAppData/inventory.db"
+db_path = "inventory.db"
 
 def connect():
     conn = sqlite3.connect(db_path)
@@ -251,17 +251,25 @@ def init_db(db_path=db_path):
     """)
 
     cursor.execute("""
+    CREATE VIEW IF NOT EXISTS ConsumablesAvailableTotaled AS
+    SELECT p.ProductName, COALESCE(SUM(CASE WHEN c.DateFinished = '' THEN 1 ELSE 0 END), 0) AS TotalQuantityAvailable
+    FROM Products p
+    LEFT JOIN ConsumableLogs c ON c.ProductName = p.ProductName
+    WHERE p.IsConsumable = 'y'
+    GROUP BY p.ProductName
+    """)
+
+
+    cursor.execute("""
     DROP VIEW IF EXISTS ReOrderList;
     """)
 
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS ReOrderList AS
-    SELECT c.ProductName, COUNT(*) AS TotalQuantityAvailable, p.Alert
-    FROM Products p
-    LEFT JOIN ConsumableLogs c ON c.ProductName = p.ProductName
-    WHERE c.DateFinished == ''
-    GROUP BY c.ProductName
-    HAVING TotalQuantityAvailable <= p.Alert
+    SELECT c.*, p.Alert
+    FROM ConsumablesAvailableTotaled c
+    LEFT JOIN Products p ON c.ProductName = p.ProductName
+    WHERE c.TotalQuantityAvailable <= p.Alert
 
     UNION ALL
 
@@ -330,3 +338,50 @@ def get_column_types(table_name, db_path=db_path):
 
     return types
 
+def get_expanded_query(relation_interface, db_path=db_path):
+    """
+    Build a SQL query that expands foreign key columns
+    by LEFT JOINing referenced tables.
+    """
+    table_name = relation_interface.relation_name
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # 1️⃣ Get foreign keys of this table
+    cursor.execute(f"PRAGMA foreign_key_list({table_name})")
+    fks = cursor.fetchall()
+    # Each row: (id, seq, table, from, to, on_update, on_delete, match)
+    # 'from' = column in this table, 'table' = referenced table, 'to' = referenced column
+
+    select_cols = [f"{table_name}.*"]  # start with all columns from main table
+    join_clauses = []
+
+    for fk in fks:
+        fk_column = fk[3]       # column in this table
+        ref_table = fk[2]       # referenced table
+        ref_column = fk[4]      # referenced column
+
+        # 2️⃣ Get columns from referenced table
+        cursor.execute(f"PRAGMA table_info({ref_table})")
+        ref_cols = cursor.fetchall()
+
+        for col in ref_cols:
+            col_name = col[1]
+            # Exclude the foreign key column itself to avoid duplication
+            if col_name != ref_column:
+                alias = f"{fk_column}_{col_name}"
+                select_cols.append(f"{ref_table[0].lower()}.{col_name}")
+
+        # 3️⃣ Add LEFT JOIN for this foreign key
+        join_clauses.append(f"LEFT JOIN {ref_table} {ref_table[0].lower()} "
+                            f"ON {table_name}.{fk_column} = {ref_table[0].lower()}.{fk_column}")
+
+    # 4️⃣ Build the final SQL
+    where_clause, where_params = relation_interface.get_where_clauses_and_params()
+    select_clause = ", ".join(select_cols)
+    join_clause = " ".join(join_clauses)
+    query = f"SELECT {select_clause} FROM {table_name} {join_clause} {where_clause};"
+    print(query)
+    conn.close()
+    return query, where_params
