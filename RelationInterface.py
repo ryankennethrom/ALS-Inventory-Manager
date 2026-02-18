@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
 import copy
+from pathlib import Path
 
 class RelationInterface:
     def __init__(self, relation_name: str, default_search_text: str, simple_search_field: str,
@@ -17,7 +18,6 @@ class RelationInterface:
         self.relation_name = relation_name
         self.db_path = db_path
         self.simple_search_field = simple_search_field
-        
         self.filter_dict = default_filters
         self.default_search_text = default_search_text or ""
         self.search_field_text = self.default_search_text
@@ -26,6 +26,14 @@ class RelationInterface:
         
         self.curr_results = self.on_search_clicked()  # initial load
     
+    def set_current_filters_as_default(self):
+        self.default_filters = copy.deepcopy(self.filter_dict)
+    
+    def is_filter_equal(self, other_filter):
+        oth_str = str(other_filter)
+        cur_str =str(self.filter_dict)
+        return oth_str == cur_str
+
     def is_filter_default(self):
         def_str = str(self.default_filters)
         cur_str =str(self.filter_dict)
@@ -184,6 +192,9 @@ class RelationInterface:
         return self.curr_results
     
     def export_as_excel(self, exclude_columns=None, output_path="output.xlsx"):
+        if Path(output_path).exists():
+            os.remove(output_path)
+
         if exclude_columns is None:
             exclude_columns = []
        

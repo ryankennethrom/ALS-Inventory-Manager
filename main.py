@@ -6,6 +6,8 @@ from RelationWidget import RelationWidget
 from error_handler import run_with_error_handling
 import types
 import sqlite3
+import sys
+import ctypes
 
 def create_item_quantity_times(obj, details: dict):
         """Insert a new row into the database. Returns (status, user_message, error_details)."""
@@ -179,15 +181,17 @@ def analytics_content(root):
     )
 
     # -------- Widgets -----------
+    low_supply_header_value = len(reorder_ri.curr_results)
+    out_of_stock_header_value = len(outOfStockConsumablesRI.curr_results)+len(outOfStockNonConsumablesRI.curr_results)
     reorder_header = tk.Label(
         inner_frame,
-        text=f"Low Supply {"(" + str(len(reorder_ri.curr_results)) + ")"}",
+        text=f"Low Supply ({str(low_supply_header_value)})",
         font=("Segoe UI", 16, "bold")
     )
 
     out_of_stock_header = tk.Label(
         inner_frame,
-        text=f"Out Of Stock {"(" + str(len(outOfStockConsumablesRI.curr_results)+len(outOfStockNonConsumablesRI.curr_results)) + ")"}",
+        text=f"Out Of Stock ({str(out_of_stock_header_value)})",
         font=("Segoe UI", 14, "bold")
     )
 
@@ -196,10 +200,36 @@ def analytics_content(root):
         text="Available",
         font=("Segoe UI", 14, "bold")
     )
+    
+    reorder_ri.on_search_clicked_original = reorder_ri.on_search_clicked
+    def on_low_supply_tables_update():
+        out = reorder_ri.on_search_clicked_original() 
+        if reorder_ri.is_filter_equal(reorder_ri.default_filters):
+            reorder_header.configure(text=f"Low Supply ({str(len(reorder_ri.curr_results))})")
+        return out 
+    reorder_ri.on_search_clicked = on_low_supply_tables_update
 
-    def on_low_supply_query_changed():
-        if reorder_ri.is_filter_default():
-            reorder_header.configure(text=f"{}")
+    out_of_stock_values = {
+            "consumables": len(outOfStockConsumablesRI.curr_results),
+            "nonconsumables": len(outOfStockNonConsumablesRI.curr_results),
+    }
+ 
+    def on_out_of_stock_tables_update(updating_ri):
+        out = updating_ri.on_search_clicked_original()
+        con_ri = outOfStockConsumablesRI
+        noncon_ri = outOfStockNonConsumablesRI
+        if con_ri.is_filter_equal(con_ri.default_filters):
+            out_of_stock_values["consumables"] = len(con_ri.curr_results)
+        if noncon_ri.is_filter_equal(noncon_ri.default_filters):
+            out_of_stock_values["nonconsumables"] = len(noncon_ri.curr_results)
+        out_of_stock_header.configure(text=f"Out Of Stock ({str(out_of_stock_values["consumables"]+out_of_stock_values["nonconsumables"])})")
+        return out
+
+    outOfStockConsumablesRI.on_search_clicked_original = outOfStockConsumablesRI.on_search_clicked
+    outOfStockNonConsumablesRI.on_search_clicked_original = outOfStockNonConsumablesRI.on_search_clicked
+    
+    outOfStockConsumablesRI.on_search_clicked = types.MethodType(on_out_of_stock_tables_update, outOfStockConsumablesRI)
+    outOfStockNonConsumablesRI.on_search_clicked = types.MethodType(on_out_of_stock_tables_update, outOfStockNonConsumablesRI)
 
     # Headers
     reorder_header.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
@@ -266,10 +296,21 @@ def nav(root):
 
         elif selected_frame == database_manager_tab:
             database_manager_content(database_manager_tab)
-
     root.mainloop()
 
 if __name__ == "__main__":
+    
+    # Make sure one only one process exists
+    mutex_name = "ALS Inventory Manager"
+    kernel32 = ctypes.windll.kernel32
+    mutex = kernel32.CreateMutexW(None, False, mutex_name)
+    last_error = kernel32.GetLastError()
+    ERROR_ALREADY_EXISTS = 183
+
+    if last_error == ERROR_ALREADY_EXISTS:
+        print("Program is already running")
+        sys.exit(0)
+
     root = tk.Tk()
     style = ttk.Style()
     run_with_error_handling(root, nav, root)

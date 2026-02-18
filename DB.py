@@ -385,3 +385,34 @@ def get_expanded_query(relation_interface, db_path=db_path):
     print(query)
     conn.close()
     return query, where_params
+
+def get_productnames():
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT ProductName FROM Products ORDER BY ProductName")
+            rows = cursor.fetchall()
+            return [row[0] for row in rows]
+    except Exception as e:
+        print("Error fetching product names:", e)
+        return []
+
+def get_stations():
+        """
+        Returns a list of unique station names
+        from the Products table.
+        """
+        try:
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT DISTINCT Station
+                    FROM Products
+                    WHERE Station IS NOT NULL
+                    ORDER BY Station
+                """)
+                rows = cursor.fetchall()
+                return [row[0] for row in rows]
+        except Exception as e:
+            print("Error fetching stations:", e)
+            return []
