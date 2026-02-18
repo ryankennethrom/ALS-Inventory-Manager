@@ -33,6 +33,8 @@ class RelationWidget(ttk.LabelFrame):
         self.create_widgets()
         self.popup = None
         self.update_table()
+        self.all_columns = DB.get_columns(self.relation.relation_name)
+        self.all_column_types = DB.get_column_types(self.relation.relation_name)
 
         style = ttk.Style()
         style.configure("LightGrey.Treeview",
@@ -158,8 +160,9 @@ class RelationWidget(ttk.LabelFrame):
         date_predicates = ["last 24 hours", "last week", "last 30 days", "last 6 months", "last year", "all time"]
 
         # Fetch schema info
-        table_columns = DB.get_columns(self.relation.relation_name)
-        column_types = DB.get_column_types(self.relation.relation_name)
+
+        table_columns = self.all_columns
+        column_types = self.all_column_types
 
         def get_filter_json(col, pred, value):
             col_type = column_types.get(col, "").upper()

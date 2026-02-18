@@ -197,6 +197,10 @@ def analytics_content(root):
         font=("Segoe UI", 14, "bold")
     )
 
+    def on_low_supply_query_changed():
+        if reorder_ri.is_filter_default():
+            reorder_header.configure(text=f"{}")
+
     # Headers
     reorder_header.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
     reorder.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 20))
@@ -248,7 +252,6 @@ def nav(root):
     analytics_content(analytics_tab)
     database_manager_content(database_manager_tab)
 
-    # ---------------- RELOAD HANDLER ----------------
     def on_tab_changed(event):
         selected_tab_id = notebook.select()
         selected_frame = notebook.nametowidget(selected_tab_id)
@@ -263,8 +266,6 @@ def nav(root):
 
         elif selected_frame == database_manager_tab:
             database_manager_content(database_manager_tab)
-
-    notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
 
     root.mainloop()
 
