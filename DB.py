@@ -2,8 +2,8 @@ import sqlite3
 import os
 import re
 
-# db_path = "Z:/InventoryAppData/inventory.db"
-db_path = "inventory.db"
+db_path = "Z:/InventoryAppData/inventory.db"
+# db_path = "inventory.db"
 
 def connect():
     conn = sqlite3.connect(db_path)
