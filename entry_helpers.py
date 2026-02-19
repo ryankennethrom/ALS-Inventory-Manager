@@ -4,7 +4,7 @@ from tkinter import ttk
 import pyautogui
 
 def attach_datepicker(entry):
-
+    
     calendar_window = None
     focus_in_id = None
     focus_out_id = None
@@ -45,8 +45,9 @@ def attach_datepicker(entry):
 
         parent.bind("<Configure>", reposition_calendar)
 
-        cal = Calendar(calendar_window, selectmode="day", date_pattern="yyyy-mm-dd")
-        cal.pack()
+        calendar_window.cal = Calendar(calendar_window, selectmode="day", date_pattern="yyyy-mm-dd")
+        calendar_window.cal.pack()
+        cal = calendar_window.cal
 
         def select_date(event=None):
             entry.delete(0, tk.END)
