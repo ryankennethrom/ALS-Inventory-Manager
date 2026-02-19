@@ -45,9 +45,8 @@ def attach_datepicker(entry):
 
         parent.bind("<Configure>", reposition_calendar)
 
-        calendar_window.cal = Calendar(calendar_window, selectmode="day", date_pattern="yyyy-mm-dd")
-        calendar_window.cal.pack()
-        cal = calendar_window.cal
+        cal = Calendar(calendar_window, selectmode="day", date_pattern="yyyy-mm-dd")
+        cal.pack()
 
         def select_date(event=None):
             entry.delete(0, tk.END)
