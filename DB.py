@@ -2,14 +2,7 @@ import sqlite3
 import os
 import re
 
-<<<<<<< HEAD
 def connect(db_path):
-=======
-db_path = "Z:/InventoryAppData/inventory.db"
-# db_path = "inventory.db"
-
-def connect():
->>>>>>> d0fec52298f51984759595cfcdf6752b6bd98235
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON;")  # ensure FK checks
     return conn
