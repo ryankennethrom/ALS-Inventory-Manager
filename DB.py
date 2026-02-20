@@ -2,15 +2,12 @@ import sqlite3
 import os
 import re
 
-# db_path = "Z:/InventoryAppData/inventory.db"
-db_path = "inventory.db"
-
-def connect():
+def connect(db_path):
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON;")  # ensure FK checks
     return conn
 
-def init_db(db_path=db_path):
+def init_db(db_path):
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON;")
     cursor = conn.cursor()
@@ -28,8 +25,7 @@ def init_db(db_path=db_path):
         IsConsumable TEXT NOT NULL CHECK (IsConsumable IN ('n', 'y')),
         Alert INTEGER NOT NULL CHECK (Alert >= 0),
         VendorItemNumber TEXT,
-        Vendor TEXT NOT NULL,
-        PO TEXT
+        Vendor TEXT NOT NULL
     ) STRICT;
     """)
     
@@ -39,7 +35,7 @@ def init_db(db_path=db_path):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ProductName TEXT NOT NULL,
             LOT TEXT NOT NULL,
-
+            PO TEXT,
             Quantity INTEGER NOT NULL
                 CHECK (Quantity = 1),
 
@@ -287,7 +283,7 @@ def init_db(db_path=db_path):
     conn.commit()
     conn.close()
 
-def delete_db(db_path=db_path):
+def delete_db(db_path):
     """Delete the SQLite database file."""
     if os.path.exists(db_path):
         os.remove(db_path)
@@ -295,7 +291,7 @@ def delete_db(db_path=db_path):
     else:
         print(f"Database '{db_path}' does not exist.")
 
-def get_columns(relation_name, db_path=db_path):
+def get_columns(relation_name, db_path):
     """
     Returns a list of column names for a SQLite table or view.
     """
@@ -311,7 +307,7 @@ def get_columns(relation_name, db_path=db_path):
     # (cid, name, type, notnull, dflt_value, pk)
     return [row[1] for row in rows]
 
-def get_column_types(table_name, db_path=db_path):
+def get_column_types(table_name, db_path):
     """
     Returns a dict mapping column name -> logical type: 'integer', 'float', 'text', 'date'
     """
@@ -338,7 +334,7 @@ def get_column_types(table_name, db_path=db_path):
 
     return types
 
-def get_expanded_query(relation_interface, db_path=db_path):
+def get_expanded_query(relation_interface, db_path):
     """
     Build a SQL query that expands foreign key columns
     by LEFT JOINing referenced tables.
@@ -382,22 +378,54 @@ def get_expanded_query(relation_interface, db_path=db_path):
     select_clause = ", ".join(select_cols)
     join_clause = " ".join(join_clauses)
     query = f"SELECT {select_clause} FROM {table_name} {join_clause} {where_clause};"
-    print(query)
     conn.close()
     return query, where_params
 
-def get_productnames():
+def get_query(relation_interface, db_path):
+    """
+    Build a SQL query that selects all columns from the given table,
+    without following foreign keys.
+    """
+    table_name = relation_interface.relation_name
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Get column names from this table
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    columns = [col[1] for col in cursor.fetchall()]
+
+    # Build SELECT clause
+    select_clause = ", ".join([f"{table_name}.{col}" for col in columns])
+
+    # Build WHERE clause from relation_interface
+    where_clause, where_params = relation_interface.get_where_clauses_and_params()
+
+    # Final query
+    query = f"SELECT {select_clause} FROM {table_name} {where_clause};"
+
+    conn.close()
+    return query, where_params
+
+def get_productnames(db_path, relation_name):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT ProductName FROM Products ORDER BY ProductName")
+            
+            if "nonconsumable" in relation_name.lower():
+                where_clause = "WHERE IsConsumable = 'n'"
+            elif "consumable" in relation_name.lower():
+                where_clause = "WHERE IsConsumable = 'y'"
+            else:
+                where_clause = ""
+            cursor.execute(f"SELECT ProductName FROM Products {where_clause} ORDER BY ProductName")
             rows = cursor.fetchall()
             return [row[0] for row in rows]
     except Exception as e:
         print("Error fetching product names:", e)
         return []
 
-def get_stations():
+def get_stations(db_path):
         """
         Returns a list of unique station names
         from the Products table.

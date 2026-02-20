@@ -10,8 +10,11 @@ from error_handler import run_with_error_handling
 from tkinter import messagebox
 import time
 import types
-from entry_helpers import attach_datepicker, attach_listpicker
+from entry_helpers import attach_datepicker, attach_listpicker, attach_fuzzy_list
 import copy
+from tkinter import filedialog, messagebox
+import uuid
+
 
 def generate_random_name(length=6):
     letters = string.ascii_uppercase
@@ -24,13 +27,13 @@ class RelationWidget(ttk.LabelFrame):
         super().__init__(master, text=title, padding=padding, **kwargs)
         self.title=title
         self.relation = relation_interface
-        self.all_columns = DB.get_columns(self.relation.relation_name)
-        self.all_column_types = DB.get_column_types(self.relation.relation_name)
+        self.all_columns = DB.get_columns(self.relation.relation_name, self.relation.db_path)
+        self.all_column_types = DB.get_column_types(self.relation.relation_name, self.relation.db_path)
         self.exclude_fields_on_update = exclude_fields_on_update
         self.exclude_fields_on_show = exclude_fields_on_show
-        self.update_item_columns = [col for col in DB.get_columns(self.relation.relation_name) if col not in exclude_fields_on_update] 
-        self.show_columns = [col for col in DB.get_columns(self.relation.relation_name) if col not in exclude_fields_on_show]
-        self.create_item_columns = [col for col in DB.get_columns(self.relation.relation_name) if col not in exclude_fields_on_create]
+        self.update_item_columns = [col for col in self.all_columns if col not in exclude_fields_on_update] 
+        self.show_columns = [col for col in self.all_columns if col not in exclude_fields_on_show]
+        self.create_item_columns = [col for col in self.all_columns if col not in exclude_fields_on_create]
         self.is_view = is_view
         self.min_width = min_width
         self.min_height = min_height
@@ -47,28 +50,35 @@ class RelationWidget(ttk.LabelFrame):
                         bordercolor="#ADD8E6",
                         foreground="black")
 
-        def auto_resize_columns(tree, results):
-            f = tkfont.Font()  # default font of Treeview
+        def resize_columns(tree, results):
+            f = tkfont.Font()
             max_width = dict()
             padding = 0
 
-            # Include header width
-            for col in DB.get_columns(self.relation.relation_name):
+            for col in self.all_columns:
                 max_width[col] = f.measure(col + " " * padding)  # small padding
 
-            # Include row values
             for item in results:
                 for col, val in item.items():
                     width = f.measure(str(val) + " " * padding)  # small padding
                     if width > max_width[col]:
                         max_width[col] = width
 
-            # Set column widths
             for col in tree["columns"]:
                 if col in max_width:
                     tree.column(col, width=max_width[col])
 
-        auto_resize_columns(self.tree, self.relation.curr_results)
+        resize_columns(self.tree, self.relation.curr_results)
+
+        popup = self.create_popup(title="Advanced Search")
+        popup.withdraw()
+        frame = self.create_frame(popup)
+        advanced_search_widgets = self.create_advanced_search_widgets(frame, self.all_columns, self.all_column_types)
+        inactive_filters = copy.deepcopy(self.get_filters(advanced_search_widgets, self.all_columns, self.all_column_types))
+        popup.destroy()
+        self.relation.on_filter_changed(inactive_filters)
+        self.relation.set_current_filters_as_inactive()
+        self.relation.set_current_filters_as_default()
 
     def create_widgets(self):
         # Configure internal grid
@@ -86,7 +96,10 @@ class RelationWidget(ttk.LabelFrame):
         self.search_entry.grid(row=0, column=0, sticky="ew", padx=5)
         self.search_entry.bind("<Return>", self.search)
 
-        ttk.Button(self.search_frame, text=self.relation.simple_search_field, command=self.search).grid(row=0, column=1, sticky="ew", padx=5)
+        if self.relation.simple_search_field == "ProductName":
+            attach_fuzzy_list(self.search_entry, DB.get_productnames(self.relation.db_path, self.relation.relation_name))
+
+        search_button = ttk.Button(self.search_frame, text=self.relation.simple_search_field, command=self.search).grid(row=0, column=1, sticky="ew", padx=5)
 
         self.advance_button = ttk.Button(self.search_frame, text="Advanced Search", style="TButton")
         
@@ -143,62 +156,163 @@ class RelationWidget(ttk.LabelFrame):
             ttk.Button(self.button_frame, text="Add", command=self.add).pack(side=tk.LEFT, padx=5)
             ttk.Button(self.button_frame, text="Delete", command=self.delete).pack(side=tk.LEFT, padx=5)
             self.tree.bind("<Double-1>", self.on_double_click)
-        ttk.Button(self.button_frame, text="Export", command=lambda: run_with_error_handling(self.relation.export_as_excel(exclude_columns=self.exclude_fields_on_show, output_path=f"{self.relation.relation_name}.xlsx"))).pack(side=tk.LEFT, padx=5)
+        ttk.Button(self.button_frame, text="Export Results", command=self.export_results).pack(side=tk.LEFT, padx=5)
         
-        self.popup = tk.Toplevel(self)
-        popup = self.popup
-        popup.withdraw()
-        popup.protocol("WM_DELETE_WINDOW", popup.withdraw)
-        popup.title("Advanced Search")
+    def create_popup(self, title):
+        popup = tk.Toplevel(self)
+        popup.title(title)
         popup.resizable(False, False)
-        # popup.transient(self)
-        # popup.grab_set()
         popup.attributes("-topmost", True)
+        return popup
 
+    def create_frame(self, popup):
         frame = tk.Frame(popup, padx=20, pady=20)
         frame.grid(sticky="nsew")
-       
-        self.advanced_search_widgets = self.create_advanced_search_widgets(frame, self.all_columns, self.all_column_types)
+        return frame
+    
+    def hold_popup(self, popup):
+        def center_popup(event=None):
+            if not popup or not popup.winfo_exists():
+                return
+            popup.update_idletasks()
+            popup_width = popup.winfo_reqwidth()
+            popup_height = popup.winfo_reqheight()
 
-        default_filters = copy.deepcopy(self.get_filters(self.advanced_search_widgets, self.all_columns, self.all_column_types))
-        
-        self.relation.on_filter_changed(default_filters)
-        self.relation.set_current_filters_as_default()
+            parent_x = self.winfo_rootx()
+            parent_y = self.winfo_rooty()
+            parent_width = self.winfo_width()
+            parent_height = self.winfo_height()
 
-        
-        # Buttons
-        button_frame = ttk.Frame(frame)
-        button_frame.grid(row=len(self.all_columns), column=0, columnspan=3, pady=(15, 0))
+            x = parent_x + (parent_width // 2) - (popup_width // 2)
+            y = parent_y + (parent_height // 2) - (popup_height // 2)
 
-        def reset_filters():
-            self.relation.on_search_field_changed(self.relation.default_search_text)
-            self.search_entry.delete(0, tk.END)
-            self.search_entry.insert(0, self.relation.default_search_text)
-            self.relation.on_filter_changed(self.relation.default_filters)
-            self.relation.on_search_clicked()
-            self.update_table()
-            popup.withdraw()
+            popup.geometry(f"+{x}+{y}")
+        center_popup()
+        self.winfo_toplevel().bind("<Configure>", center_popup)
+    
+    def export_results(self):
+        def _export():
+            def ask_exclude_fields():
 
-        def apply_filters(event=None):
-            filters = self.get_filters(self.advanced_search_widgets, self.all_columns, self.all_column_types)
-            self.relation.on_filter_changed(filters)
-            self.relation.curr_results = self.relation.on_search_clicked()
-            self.update_table()
-            popup.withdraw()
+                result = None
 
-        ttk.Button(button_frame, text="Apply", command=apply_filters).pack(side="left", padx=5)
-        ttk.Button(button_frame, text="Reset", command=reset_filters).pack(side="left", padx=5)
-        ttk.Button(button_frame, text="Cancel", command=popup.withdraw).pack(side="left", padx=5)
+                title = ""
+                
+                if self.popup is not None and self.popup.winfo_exists():
+                    return
 
-        popup.bind("<Return>", apply_filters)
-        
+                self.popup = self.create_popup(title=title)
+                popup = self.popup
+                frame = self.create_frame(popup)
+
+                vars_map = {}
+
+                for col in self.show_columns:
+                    var = tk.BooleanVar(value=True)
+                    chk = tk.Checkbutton(frame, text=col, variable=var)
+                    chk.pack(anchor="w")
+                    vars_map[col] = var
+
+                def confirm():
+                    nonlocal result
+                    result = [col for col, var in vars_map.items() if not var.get()]
+                    popup.destroy()
+
+                tk.Button(frame, text="Export", command=confirm).pack()
+                
+                self.hold_popup(popup)
+                popup.wait_window()
+
+                return result
+
+            def ask_columns_checkbox_popup(title):
+                popup = self.create_popup(title=title)
+
+                frame = tk.Frame(popup, padx=20, pady=20)
+                frame.grid(sticky="nsew")
+
+                vars_dict = {}
+
+                row = 0
+                for col in self.show_columns:
+
+                    var = tk.BooleanVar(value=True)  # default checked
+
+                    chk = ttk.Checkbutton(
+                        frame,
+                        text=col,
+                        variable=var
+                    )
+                    chk.grid(row=row, column=0, sticky="w", pady=2)
+
+                    vars_dict[col] = var
+                    row += 1
+
+                result = []
+
+                def on_confirm():
+                    popup.destroy()
+
+                def on_cancel():
+                    vars_dict.clear()
+                    popup.destroy()
+
+                # Buttons
+                btn_frame = tk.Frame(frame)
+                btn_frame.grid(row=row, column=0, pady=(10, 0), sticky="e")
+
+                ttk.Button(btn_frame, text="OK", command=on_confirm).pack(side="right", padx=5)
+                ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
+
+                
+                self.hold_popup(popup)
+                popup.wait_window()
+
+                # Return unchecked columns (to exclude)
+                if not vars_dict:
+                    return None  # user cancelled
+
+                excluded = [
+                    col for col, var in vars_dict.items()
+                    if not var.get()
+                ]
+
+
+                return excluded
+
+            exclude_fields = ask_exclude_fields()
+            
+            if exclude_fields is None:
+                return
+
+            hash_part = uuid.uuid4().hex[:8]
+            default_name = f"{self.relation.relation_name}_{hash_part}.xlsx"
+
+            output_path = filedialog.asksaveasfilename(
+                title="Save Excel File As",
+                defaultextension=".xlsx",
+                initialfile=default_name,
+                filetypes=[("Excel Files", "*.xlsx")]
+            )
+
+            if not output_path:
+                return
+
+            self.relation.export_as_excel(
+                exclude_columns=exclude_fields,
+                output_path=output_path
+            )
+
+        run_with_error_handling(self, _export)
+
+
     def create_advanced_search_widgets(self, frame, columns, column_types):
         row = 0
         widgets = {}
 
         text_predicates = ["startswith", "contains", "endswith", "exactly"]
         number_predicates = ["equal", "not equal", "less than", "greater than", "less than or equal", "greater than or equal"]
-        date_predicates = ["last 24 hours", "last week", "last 30 days", "last 6 months", "last year", "all time"]
+        date_predicates = ["past 24 hours", "past week", "past 30 days", "past 6 months", "past year", "all time"]
 
         for col in columns:
 
@@ -253,10 +367,10 @@ class RelationWidget(ttk.LabelFrame):
             # ---------------- DATE ----------------
             elif "DATE" in col_type:
                 pred = ttk.Combobox(frame, values=date_predicates, state="readonly", width=18)
-                pred.set(date_predicates[-1])  # default: last 30 days
+                pred.set(date_predicates[-1])
                 if col in self.relation.filter_dict:
                     date_filter = self.relation.filter_dict[col]
-                    pred.set(date_filter["filterValue"])
+                    pred.set(date_filter["predicate"])
                 pred.grid(row=row, column=1, columnspan=2, padx=5)
                 widgets[col] = (None, pred)
 
@@ -267,13 +381,13 @@ class RelationWidget(ttk.LabelFrame):
                 widgets[col] = (entry, None)
 
             if col == "Station":
-                attach_listpicker(entry, [""]+DB.get_stations())
+                attach_fuzzy_list(entry, DB.get_stations(self.relation.db_path))
             elif col == "IsConsumable":
-                attach_listpicker(entry, ["", "y", "n"])
+                attach_fuzzy_list(entry, ["y", "n"])
             elif col == "ProductName":
-                attach_listpicker(entry, [""]+DB.get_productnames())
+                attach_fuzzy_list(entry, DB.get_productnames(self.relation.db_path,  self.relation.relation_name))
             elif col == "ActionType":
-                attach_listpicker(entry, ["", "Received", "Opened"])
+                attach_fuzzy_list(entry, ["Received", "Opened"])
 
             row += 1
 
@@ -363,11 +477,11 @@ class RelationWidget(ttk.LabelFrame):
 
                 ranges = {
                     "all time": None,
-                    "last 24 hours": "-1 day",
-                    "last week": "-7 days",
-                    "last 30 days": "-30 days",
-                    "last 6 months": "-6 months",
-                    "last year": "-1 year"
+                    "past 24 hours": "-1 day",
+                    "past week": "-7 days",
+                    "past 30 days": "-30 days",
+                    "past 6 months": "-6 months",
+                    "past year": "-1 year"
                 }
 
                 modifier = ranges[pred]
@@ -391,41 +505,62 @@ class RelationWidget(ttk.LabelFrame):
 
     # -------------------- Actions --------------------
     def advanced_search(self, advance_btn):
-        if self.popup is None:
+        if self.popup is not None and self.popup.winfo_exists():
             return
-        popup = self.popup      
-        popup.update_idletasks()
-
-        # Popup size
-        popup_width = popup.winfo_reqwidth()
-        popup_height = popup.winfo_reqheight()
-
-        # Parent widget position & size
-        parent_x = self.winfo_rootx()
-        parent_y = self.winfo_rooty()
-        parent_width = self.winfo_width()
-        parent_height = self.winfo_height()
-
-        # Calculate centered position
-        x = parent_x + (parent_width // 2) - (popup_width // 2)
-        y = parent_y + (parent_height // 2) - (popup_height // 2)
-
-        popup.geometry(f"+{x}+{y}")
-
-        self.popup.deiconify()
         
+        self.popup = self.create_popup(title="Advanced Search")
+        popup = self.popup
+        frame = self.create_frame(popup)
+
+        advanced_search_widgets = self.create_advanced_search_widgets(frame, self.all_columns, self.all_column_types)
+
+        button_frame = ttk.Frame(frame)
+        button_frame.grid(row=len(self.all_columns), column=0, columnspan=3, pady=(15, 0))
+
+        def reset_filters():
+            self.refresh()
+            popup.destroy()
+
+        def apply_filters(event=None):
+            filters = self.get_filters(advanced_search_widgets, self.all_columns, self.all_column_types)
+            self.apply_filters(filters)
+            popup.destroy()
+
+        ttk.Button(button_frame, text="Apply", command=apply_filters).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Reset", command=reset_filters).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Cancel", command=popup.withdraw).pack(side="left", padx=5)
+
+        popup.bind("<Return>", apply_filters)
+
+        self.hold_popup(popup)
+    
+    def refresh(self):
+        self.relation.on_search_field_changed(self.relation.default_search_text)
+        self.search_entry.delete(0, tk.END)
+        self.search_entry.insert(0, self.relation.default_search_text)
+        self.relation.on_filter_changed(self.relation.default_filters)
+        self.relation.on_search_clicked()
+        self.update_table()
+
+    def apply_filters(self, filters):
+        self.relation.on_filter_changed(filters)
+        self.relation.curr_results = self.relation.on_search_clicked()
+        self.update_table()
                      
     def update_table(self):
         for row in self.tree.get_children():
             self.tree.delete(row)
         for item in self.relation.curr_results:
             self.tree.insert("", tk.END, values=[item[col] for col in self.show_columns])
-        if self.relation.is_filter_default(): 
-            self.configure(text=f"{self.title}")
-            self.tree.configure(style="Treeview")
-        else:
-            self.configure(text=f"{self.title}  (Filtered)")
+        
+        widget_status = []
+        if self.relation.is_filter_active():
+            widget_status.append("(Filtered)")
             self.tree.configure(style="LightGrey.Treeview")
+        else:
+            self.tree.configure(style="Treeview")
+
+        self.configure(text=f"{self.title} {" ".join(widget_status)}") 
 
     def on_double_click(self, event):
         selected_item = self.tree.focus()  # get selected item ID
@@ -438,7 +573,10 @@ class RelationWidget(ttk.LabelFrame):
         self.open_update_popup(selected_item, data)
 
     def open_update_popup(self, item_id, data):
-        popup = tk.Toplevel(self)
+        if self.popup is not None and self.popup.winfo_exists():
+            return
+        self.popup = tk.Toplevel(self)
+        popup = self.popup
         popup.title("Update Item")
         popup.resizable(False, False)
         popup.attributes("-topmost", True)
@@ -461,13 +599,13 @@ class RelationWidget(ttk.LabelFrame):
             if self.all_column_types[col] == "date":
                 attach_datepicker(entry)
             elif col == "ProductName":
-                attach_listpicker(entry, [""] + DB.get_productnames())
+                attach_fuzzy_list(entry, DB.get_productnames(self.relation.db_path, self.relation.relation_name))
             elif col == "Station":
-                attach_listpicker(entry, [""] + DB.get_stations())
+                attach_fuzzy_list(entry, DB.get_stations(self.relation.db_path))
             elif col == "IsConsumable":
-                attach_listpicker(entry, ["", "y", "n"])
+                attach_fuzzy_list(entry, ["y", "n"])
             elif col == "ActionType":
-                attach_listpicker(entry, ["", "Received", "Opened"])
+                attach_fuzzy_list(entry, ["Received", "Opened"])
 
 
         def save_changes(event=None):
@@ -530,9 +668,13 @@ class RelationWidget(ttk.LabelFrame):
         self.relation.on_search_field_changed(text)
         self.relation.curr_results = self.relation.on_search_clicked()
         self.update_table()
+        self.tree.focus_set()
 
     def add(self):
-        popup = tk.Toplevel(self) 
+        if self.popup is not None and self.popup.winfo_exists():
+            return
+        self.popup = tk.Toplevel(self) 
+        popup = self.popup
         popup.title("Add A New Item")
         popup.resizable(False, False)
         popup.focus_set() 
@@ -551,13 +693,13 @@ class RelationWidget(ttk.LabelFrame):
             if self.all_column_types[col] == "date":
                 attach_datepicker(entry)
             elif col == "ProductName":
-                attach_listpicker(entry, [""] + DB.get_productnames())
+                attach_fuzzy_list(entry, DB.get_productnames(self.relation.db_path, self.relation.relation_name))
             elif col == "Station":
-                attach_listpicker(entry, [""] + DB.get_stations())
+                attach_fuzzy_list(entry, DB.get_stations(self.relation.db_path))
             elif col == "IsConsumable":
-                attach_listpicker(entry, ["", "y", "n"])
+                attach_fuzzy_list(entry, ["y", "n"])
             elif col == "ActionType":
-                attach_listpicker(entry, ["", "Received", "Opened"])
+                attach_fuzzy_list(entry, ["Received", "Opened"])
             if is_first_field == True:
                 entry.focus_set()
                 is_first_field = False

@@ -13,8 +13,7 @@ import copy
 from pathlib import Path
 
 class RelationInterface:
-    def __init__(self, relation_name: str, default_search_text: str, simple_search_field: str,
-                 default_filters=dict(), db_path=DB.db_path):
+    def __init__(self, relation_name: str, default_search_text: str, simple_search_field: str, db_path, default_filters=dict()):
         self.relation_name = relation_name
         self.db_path = db_path
         self.simple_search_field = simple_search_field
@@ -23,9 +22,17 @@ class RelationInterface:
         self.search_field_text = self.default_search_text
         self.on_search_field_changed(self.search_field_text)
         self.default_filters = copy.deepcopy(self.filter_dict)
-        
-        self.curr_results = self.on_search_clicked()  # initial load
-    
+        self.inactive_filters = None
+        self.curr_results = []
+
+    def is_filter_active(self):
+        inac_str = str(self.inactive_filters)
+        cur_str = str(self.filter_dict)
+        return inac_str != cur_str
+
+    def set_current_filters_as_inactive(self):
+        self.inactive_filters = copy.deepcopy(self.filter_dict)
+
     def set_current_filters_as_default(self):
         self.default_filters = copy.deepcopy(self.filter_dict)
     
@@ -140,7 +147,7 @@ class RelationInterface:
             except (ValueError, TypeError):
                 return False
 
-        col_types = DB.get_column_types(self.relation_name)
+        col_types = DB.get_column_types(self.relation_name, self.db_path)
 
         for key, value in details.items():
             expected_type = col_types.get(key)
@@ -198,15 +205,13 @@ class RelationInterface:
         if exclude_columns is None:
             exclude_columns = []
        
-        query, params = DB.get_expanded_query(self)
+        query, params = DB.get_query(self, self.db_path)
         
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA foreign_keys = ON;")
             cursor = conn.cursor()
             cursor.execute(query, params)
             data = cursor.fetchall()
-
-            # Get column names from cursor.description
             columns = [desc[0] for desc in cursor.description]
 
 
@@ -215,7 +220,7 @@ class RelationInterface:
         df = df.drop(columns=exclude_columns, errors="ignore")
 
         # ---- Write starting at row 8 (7 empty rows above) ----
-        start_row = 7  # zero-indexed for pandas (7 means Excel row 8)
+        start_row = 7
         df.to_excel(output_path, index=False, startrow=start_row)
 
         wb = load_workbook(output_path)
