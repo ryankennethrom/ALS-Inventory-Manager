@@ -6,7 +6,7 @@ from rapidfuzz import fuzz, process
 
 
 def attach_datepicker(entry):
-
+    
     calendar_window = None
     focus_in_id = None
     focus_out_id = None
