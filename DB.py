@@ -17,15 +17,11 @@ def init_db(db_path):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Products (
         ProductName TEXT PRIMARY KEY,
-        AlsItemNumber TEXT UNIQUE,
-        UnitPrice REAL NOT NULL CHECK (UnitPrice >= 0),
         UnitOfMeasure TEXT NOT NULL,
         ItemDescription TEXT NOT NULL,
         Station TEXT NOT NULL,
         IsConsumable TEXT NOT NULL CHECK (IsConsumable IN ('n', 'y')),
-        Alert INTEGER NOT NULL CHECK (Alert >= 0),
-        VendorItemNumber TEXT,
-        Vendor TEXT NOT NULL
+        Alert INTEGER NOT NULL CHECK (Alert >= 0) 
     ) STRICT;
     """)
     
@@ -35,7 +31,6 @@ def init_db(db_path):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ProductName TEXT NOT NULL,
             LOT TEXT NOT NULL,
-            PO TEXT,
             Quantity INTEGER NOT NULL
                 CHECK (Quantity = 1),
 
@@ -84,8 +79,11 @@ def init_db(db_path):
                 CHECK (
                     (FinishedInitials == '' AND DateFinished == '') or (FinishedInitials != '' AND DateFinished != '')
                 ),
+            PONumber TEXT NOT NULL,
+            AlsItemNumber TEXT NOT NULL,
+            VendorNumber TEXT NOT NULL,
+            VendorItemNumber TEXT NOT NULL,
 
-            CreatedDateTime TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
 
             -- Lifecycle state consistency
             CHECK (
@@ -122,8 +120,6 @@ def init_db(db_path):
                 CHECK (
                     ActionType IN ('Received', 'Opened')
                 ),
-
-            CreatedDateTime TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
 
             FOREIGN KEY (ProductName)
                 REFERENCES Products(ProductName)
@@ -203,8 +199,7 @@ def init_db(db_path):
     CREATE VIEW IF NOT EXISTS AvailableConsumables AS
     SELECT *
     FROM ConsumableLogs
-    WHERE DateFinished == ''
-    ORDER BY CreatedDateTime ASC;
+    WHERE DateFinished == '';
     """)
     
     cursor.execute("""
@@ -262,7 +257,7 @@ def init_db(db_path):
 
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS ReOrderList AS
-    SELECT c.*, p.Alert
+    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Alert
     FROM ConsumablesAvailableTotaled c
     LEFT JOIN Products p ON c.ProductName = p.ProductName
     WHERE c.TotalQuantityAvailable <= p.Alert
@@ -272,6 +267,8 @@ def init_db(db_path):
     SELECT
         p.ProductName,
         COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
+        p.IsConsumable,
+        p.UnitOfMeasure,
         p.Alert
     FROM Products p
     LEFT JOIN AvailableNonConsumables n

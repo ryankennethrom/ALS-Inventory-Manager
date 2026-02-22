@@ -48,7 +48,6 @@ class RelationInterface:
     
     def on_filter_changed(self, new_filter_dict):
         new_filter_dict = copy.deepcopy(new_filter_dict)
-        new_filter_dict["simple_search"] = self.filter_dict["simple_search"]
         self.filter_dict = new_filter_dict
 
     def on_search_field_changed(self, text):
@@ -158,6 +157,20 @@ class RelationInterface:
                         f"Invalid date. Make sure {key} has the format YYYY-MM-DD and is a real date."
                     )
         return True
+    
+     
+    def on_batch_create_clicked(self, excel_file, sheet_name=0):
+        df = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        df = df[[col for col in df.columns if col in DB.get_columns(self.relation_name, self.db_path)]]
+
+        df = df.dropna(how="all")
+
+        item_list = df.to_dict(orient="records")
+
+        for item in item_list:
+            print(item)
+            self.on_create_item_clicked(item)
 
     def get_where_clauses_and_params(self):
         clauses = []

@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 import pyautogui
 from rapidfuzz import fuzz, process
-
+import DB
 
 def attach_datepicker(entry):
     
@@ -82,7 +82,7 @@ def attach_datepicker(entry):
 
         parent.bind("<Button-1>", close_if_out_of_focus)
         parent.bind("<Tab>", lambda e: calendar_window.destroy()) 
-
+        parent.bind("<Unmap>", lambda e: calendar_window.destroy())
     focus_in_id = entry.bind("<FocusIn>", show_calendar)
 
 
@@ -190,7 +190,6 @@ def attach_fuzzy_list(entry, data):
 
     def show_dropdown(event=None):
         nonlocal dropdown
-
         # Prevent multiple popups
         if dropdown and dropdown.winfo_exists():
             return
@@ -239,7 +238,7 @@ def attach_fuzzy_list(entry, data):
             query = entry.get()
 
             matches = sorted(data, key=lambda x: fuzz.ratio(query, x), reverse=True)
-            matches = ["", query] + matches
+            matches = matches
             for item in matches:
                 listbox.insert(tk.END, item)
 
@@ -254,7 +253,7 @@ def attach_fuzzy_list(entry, data):
                 value = listbox.get(listbox.curselection()[0])  # fixed tuple usage
                 entry.delete(0, tk.END)
                 entry.insert(0, value)
-                entry.tk_focusNext().focus()
+                entry.focus_set()
                 dropdown.destroy()
 
         def close_if_out_of_focus(e):
@@ -300,14 +299,39 @@ def attach_fuzzy_list(entry, data):
                 listbox.selection_set(listbox.start)
                 listbox.see(listbox.start)
             return "break"
+        
+        def focus_listbox(e):
+            if dropdown.focus_get() != listbox:
+                listbox.focus_set()
+                listbox.selection_clear(0, tk.END)
+                listbox.activate(0)
+                listbox.selection_set(0)
+                listbox.see(0)
+
+        def unfocus_listbox(e):
+            entry.focus_set()
+            return "break"
 
         parent.bind("<Button-1>", close_if_out_of_focus)
-        parent.bind("<Tab>", move_down)
+        parent.bind("<Down>", focus_listbox)
+        listbox.bind("<Up>", unfocus_listbox)
         listbox.bind("<Button-1>", on_button_down)
         listbox.bind("<Return>", on_button_down)
-        listbox.bind("<Tab>", move_down)
-        listbox.bind("<Shift-Tab>", move_up)
-
+        parent.bind("<Tab>", lambda e: dropdown.destroy()) 
+        parent.bind("<Unmap>", lambda e: dropdown.destroy())
+        entry.bind("<Return>", lambda e: dropdown.destroy(), add='+')
         entry.bind("<KeyRelease>", update_list)
     return entry.bind("<FocusIn>", show_dropdown)
 
+def attach_helper(root, entry_name, entry, db_path, relation_name, all_columns, all_column_types):
+    col = entry_name
+    if all_column_types[col] == "date":
+        attach_datepicker(entry)
+    if col == "ProductName":
+        attach_fuzzy_list(entry, DB.get_productnames(db_path, relation_name))
+    elif col == "Station":
+        attach_fuzzy_list(entry, DB.get_stations(db_path))
+    elif col == "IsConsumable":
+        attach_fuzzy_list(entry, ["y", "n"])
+    elif col == "ActionType":
+        attach_fuzzy_list(entry, ["Received", "Opened"])

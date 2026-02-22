@@ -34,28 +34,7 @@ if __name__ == "__main__":
 
     stop_if_instance_active()
     
-    def create_item_quantity_times(obj, details: dict):
-            """Insert a new row into the database. Returns (status, user_message, error_details)."""
-            obj.validate_date_inputs(details)
-            
-            input_quantity = int(details["Quantity"])
-            if input_quantity <= 0:
-                raise Exception("Quantity must be > 0")
-
-            details["Quantity"] = "1"
-            columns = ", ".join(details.keys())
-            placeholders = ", ".join(["?"] * len(details))
-            params = list(details.values())
-            
-            for i in range(input_quantity):
-                query = f"INSERT INTO {obj.relation_name} ({columns}) VALUES ({placeholders})"
-                with sqlite3.connect(obj.db_path) as conn:
-                    conn.execute("PRAGMA foreign_keys = ON;")
-                    cursor = conn.cursor()
-                    cursor.execute(query, params)
-                    conn.commit()
-        
-            obj.curr_results = obj.on_search_clicked()
+   
 
     def database_manager_content(notebook, root):
         # -------------------- Main Window --------------------
@@ -73,12 +52,31 @@ if __name__ == "__main__":
             db_path=db_path
         )
 
+        # products.on_batch_create_clicked("test.xlsm", "Product_Manager")
+
         consumables = RelationInterface(
             relation_name="ConsumableLogs",
             default_search_text="",
             simple_search_field="ProductName",
             db_path=db_path
         )
+        consumables.on_create_item_clicked_original = consumables.on_create_item_clicked
+
+        def create_item_quantity_times(obj, details: dict):
+            """Insert a new row into the database. Returns (status, user_message, error_details)."""
+            print("Hey")
+            input_quantity = int(details["Quantity"])
+            if input_quantity <= 0:
+                raise Exception("Quantity must be > 0")
+
+            details["Quantity"] = "1"
+            columns = ", ".join(details.keys())
+            placeholders = ", ".join(["?"] * len(details))
+            params = list(details.values())
+
+            for i in range(input_quantity):
+                obj.on_create_item_clicked_original(details)
+            obj.curr_results = obj.on_search_clicked()
 
         consumables.on_create_item_clicked = types.MethodType(create_item_quantity_times, consumables)
 
@@ -103,9 +101,7 @@ if __name__ == "__main__":
             exclude_fields_on_create=["id", "CreatedDateTime"],
             title="Consumable Logs"
         )
-        consumables.filter_dict["DateReceived"]["predicate"] = "past 30 days"
-        consumables.set_current_filters_as_default()
-
+        
         right = RelationWidget(
             root,
             non_consumables,
@@ -114,16 +110,22 @@ if __name__ == "__main__":
             title="Non-consumable Logs"
         )
         non_consumables.filter_dict["Date"]["predicate"] = "past 30 days"
+        right.advance_button.invoke()
+        right.apply_filters_button.invoke()
         non_consumables.set_current_filters_as_default()
-
-
-        registry.register(left, ["Database"])
-        registry.register(middle, ["Database"])
-        registry.register(right, ["Database"])
+        
+        consumables.filter_dict["DateReceived"]["predicate"] = "past 30 days"
+        middle.advance_button.invoke()
+        middle.apply_filters_button.invoke()
+        consumables.set_current_filters_as_default()
 
         middle.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
         left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
         right.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
+        
+        registry.register(left, ["Database"])
+        registry.register(middle, ["Database", "Early"])
+        registry.register(right, ["Database", "Early"])
 
     def analytics_content(notebook, root):
         # ------------------ Scrollable Canvas ------------------
@@ -248,6 +250,8 @@ if __name__ == "__main__":
             fg="gray"
         )
         last_updated_label.grid(row=0, column=1, sticky="e", padx=(10, 0))
+        now = datetime.datetime.now().strftime("%Y-%m-%d %I:%M %p")
+        last_updated_label.config(text=f"Last Refresh: {now}")
 
         def refresh_button():
             registry.refresh(["Analytics"])
@@ -263,8 +267,6 @@ if __name__ == "__main__":
 
             if selected_frame == root:
                 refresh_button.invoke()
-
-        notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
 
         out_of_stock_header = tk.Label(
             inner_frame,
@@ -365,11 +367,13 @@ if __name__ == "__main__":
         analytics_content(notebook, analytics_tab)
         database_manager_content(notebook, database_manager_tab)
         
+        registry.refresh_all(exceptions=["Early"])
 
-        registry.refresh_all()
-
-        root.mainloop()
 
     root = tk.Tk()
     style = ttk.Style()
     run_with_error_handling(root, nav, root)
+    root.lift()
+    root.focus_force()
+    root.mainloop()
+

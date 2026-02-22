@@ -26,8 +26,8 @@ def refresh(parents):
             if parent_set_hash in refresh_callbacks:
                 refresh_callbacks[parent_set_hash]()
 
-def refresh_all():
-    parents = {parent for parent in relation_widgets.keys()}
+def refresh_all(exceptions=[]):
+    parents = {parent for parent in relation_widgets.keys() if parent not in exceptions}
     refresh(parents)
 
 
