@@ -251,13 +251,11 @@ def init_db(db_path):
     """)
 
 
-    cursor.execute("""
-    DROP VIEW IF EXISTS ReOrderList;
-    """)
+    cursor.execute(""" DROP VIEW IF EXISTS ReOrderList; """)
 
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS ReOrderList AS
-    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Alert
+    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Station, p.Alert
     FROM ConsumablesAvailableTotaled c
     LEFT JOIN Products p ON c.ProductName = p.ProductName
     WHERE c.TotalQuantityAvailable <= p.Alert
@@ -269,12 +267,46 @@ def init_db(db_path):
         COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
         p.IsConsumable,
         p.UnitOfMeasure,
+        p.Station,
         p.Alert
     FROM Products p
     LEFT JOIN AvailableNonConsumables n
         ON n.ProductName = p.ProductName
     WHERE p.IsConsumable = 'n'
       AND COALESCE(n.TotalQuantityAvailable, 0) <= p.Alert;
+    """)
+
+    cursor.execute(""" DROP VIEW IF EXISTS OutOfStock; """)
+    
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS OutOfStock AS
+    SELECT
+        p.ProductName,
+        COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0)
+            - COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
+        p.Station,
+        p.IsConsumable
+    FROM Products p
+    LEFT JOIN NonConsumableLogs l
+        ON p.ProductName = l.ProductName
+    WHERE p.IsConsumable = 'n'
+    GROUP BY p.ProductName
+    HAVING TotalQuantityAvailable <= 0
+
+    UNION ALL
+
+    SELECT
+        p.ProductName,
+        COALESCE(SUM(CASE WHEN l2.DateFinished = '' THEN l2.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
+        p.Station,
+        p.IsConsumable
+    FROM Products p
+    LEFT JOIN ConsumableLogs l2
+        ON p.ProductName = l2.ProductName
+    WHERE p.IsConsumable = 'y'
+    GROUP BY p.ProductName
+    HAVING TotalQuantityAvailable <= 0;
+
     """)
 
     conn.commit()

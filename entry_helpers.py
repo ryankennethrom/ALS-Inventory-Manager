@@ -18,8 +18,6 @@ def attach_datepicker(entry):
         nonlocal focus_in_id
         nonlocal calendar_window
 
-        entry.delete(0, tk.END)
- 
         def hide_calendar(event=None):
             if calendar_window:
                 calendar_window.destroy()
@@ -198,7 +196,7 @@ def attach_fuzzy_list(entry, data):
 
         dropdown = tk.Toplevel(parent)
         dropdown.overrideredirect(True)
-        dropdown.attributes("-topmost", True)
+        dropdown.lift()
 
         # Position under entry
         def reposition_dropdown(event=None):
@@ -232,7 +230,7 @@ def attach_fuzzy_list(entry, data):
         def update_list(event=None):
             if not dropdown or not dropdown.winfo_exists():
                 return
-
+            dropdown.lift()
             listbox.delete(0, tk.END)
 
             query = entry.get()
@@ -254,6 +252,7 @@ def attach_fuzzy_list(entry, data):
                 entry.delete(0, tk.END)
                 entry.insert(0, value)
                 entry.focus_set()
+                pyautogui.press("enter")
                 dropdown.destroy()
 
         def close_if_out_of_focus(e):

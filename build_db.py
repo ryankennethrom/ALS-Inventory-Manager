@@ -250,10 +250,15 @@ if __name__ == "__main__":
     
     mapping = merged.set_index(merged['ProductName'].str.lower())['ProductName'].to_dict()
     prod_quant['ProductName'] = prod_quant['ProductName'].str.lower().map(mapping).fillna(prod_quant['ProductName'])
+    
+    
     prod_quant = prod_quant[prod_quant["ProductName"] != "AN Std"]
     prod_quant = prod_quant[prod_quant["ProductName"] != "ICP Std V26-10"]
     prod_quant = prod_quant[prod_quant["ProductName"] != "ICP Std V26-500"]
     prod_quant = prod_quant[prod_quant["ProductName"] != "Lithium Chloride, 2M in Ethanol 250mL"]
+    prod_quant = prod_quant[prod_quant["ProductName"] != "Conductivity TDS Std"]
+    prod_quant = prod_quant[prod_quant["ProductName"] != "Custom MA5 2000ug/g"]
+    
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
         # id_df.to_sql('ConsumableLogs', conn, if_exists='append', index=False)

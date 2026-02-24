@@ -30,4 +30,11 @@ def refresh_all(exceptions=[]):
     parents = {parent for parent in relation_widgets.keys() if parent not in exceptions}
     refresh(parents)
 
-
+def destroy_popups(parents):
+    finished = set()
+    for parent in parents:
+        for relation_widget in relation_widgets[parent]:
+            if relation_widget.relation.relation_name in finished:
+                continue
+            if relation_widget.popup is not None:
+                relation_widget.popup.destroy()

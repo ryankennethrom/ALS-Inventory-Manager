@@ -52,12 +52,11 @@ if __name__ == "__main__":
             db_path=db_path
         )
 
-        # products.on_batch_create_clicked("test.xlsm", "Product_Manager")
-
         consumables = RelationInterface(
             relation_name="ConsumableLogs",
             default_search_text="",
             simple_search_field="ProductName",
+            order_by="DateReceived",
             db_path=db_path
         )
         consumables.on_create_item_clicked_original = consumables.on_create_item_clicked
@@ -83,6 +82,7 @@ if __name__ == "__main__":
         non_consumables = RelationInterface(
             relation_name="NonConsumableLogs",
             default_search_text="",
+            order_by="Date",
             simple_search_field="ProductName",
             db_path=db_path
         )
@@ -127,9 +127,15 @@ if __name__ == "__main__":
         registry.register(middle, ["Database", "Early"])
         registry.register(right, ["Database", "Early"])
 
+
+        def on_tab_changed(event):
+            registry.destroy_popups(["Analytics"])
+        notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
+
+
     def analytics_content(notebook, root):
         # ------------------ Scrollable Canvas ------------------
-        canvas = tk.Canvas(root)
+        canvas = tk.Canvas(root, bg="blue", highlightthickness=0)
         v_scroll = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=v_scroll.set)
 
@@ -165,6 +171,13 @@ if __name__ == "__main__":
             db_path=db_path
         )
 
+        outOfStockRI = RelationInterface(
+            relation_name="OutOfStock",
+            default_search_text="",
+            simple_search_field="ProductName",
+            db_path=db_path
+        )
+
         availableConsumablesRI = RelationInterface(
             relation_name="AvailableConsumables",
             default_search_text="",
@@ -190,6 +203,7 @@ if __name__ == "__main__":
         outOfStockConsumables = RelationWidget(
             inner_frame,
             outOfStockConsumablesRI,
+            labels=["Analytics"],
             is_view=True,
             title="Consumables"
         )
@@ -197,14 +211,24 @@ if __name__ == "__main__":
         outOfStockNonConsumables = RelationWidget(
             inner_frame,
             outOfStockNonConsumablesRI,
+            labels=["Analytics"],
             exclude_fields_on_show=["TotalQuantityReceived", "TotalQuantityOpened"],
             is_view=True,
             title="Non-consumables"
         )
 
+        outOfStock = RelationWidget(
+            inner_frame,
+            outOfStockRI,
+            labels=["Analytics"],
+            is_view=True,
+            title="Consumables/Non-consumables"
+        )
+
         availableConsumables = RelationWidget(
             inner_frame,
             availableConsumablesRI,
+            labels=["Analytics"],
             is_view=True,
             title="Consumables"
         )
@@ -212,6 +236,7 @@ if __name__ == "__main__":
         availableNonConsumables = RelationWidget(
             inner_frame,
             availableNonConsumablesRI,
+            labels=["Analytics"],
             exclude_fields_on_show=["TotalQuantityReceived", "TotalQuantityOpened"],
             is_view=True,
             title="Non-consumables"
@@ -220,6 +245,7 @@ if __name__ == "__main__":
         reorder = RelationWidget(
             inner_frame,
             reorder_ri,
+            labels=["Analytics"],
             exclude_fields_on_show=[],
             is_view=True,
             title="Consumables/Non-consumables"
@@ -261,12 +287,6 @@ if __name__ == "__main__":
         refresh_button = tk.Button(top_header_frame, text="Refresh Analytics", command=refresh_button)
         refresh_button.grid(row=0, column=2, sticky="e")
 
-        def on_tab_changed(event):
-            selected_tab_id = notebook.select()
-            selected_frame = notebook.nametowidget(selected_tab_id)
-
-            if selected_frame == root:
-                refresh_button.invoke()
 
         out_of_stock_header = tk.Label(
             inner_frame,
@@ -304,25 +324,33 @@ if __name__ == "__main__":
             out_of_stock_header.configure(text=f"Out Of Stock ({str(out_of_stock_values["consumables"]+out_of_stock_values["nonconsumables"])})")
             return out
 
+
+
         outOfStockConsumablesRI.on_search_clicked_original = outOfStockConsumablesRI.on_search_clicked
         outOfStockNonConsumablesRI.on_search_clicked_original = outOfStockNonConsumablesRI.on_search_clicked
         
         outOfStockConsumablesRI.on_search_clicked = types.MethodType(on_out_of_stock_tables_update, outOfStockConsumablesRI)
         outOfStockNonConsumablesRI.on_search_clicked = types.MethodType(on_out_of_stock_tables_update, outOfStockNonConsumablesRI)
 
+        def on_out_of_stock_table_update():
+            if outOfStockRI.is_filter_equal(outOfStockRI.default_filters):
+                out_of_stock_header.configure(text=f"Out Of Stock ({str(len(outOfStockRI.curr_results))})")
+
+        outOfStockRI.after_search_clicked = on_out_of_stock_table_update
+
+
         # Headers
         reorder_header.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
         reorder.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 20))
 
         out_of_stock_header.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
-        outOfStockConsumables.grid(row=3, column=0, sticky="nsew", padx=10, pady=10)
-        outOfStockNonConsumables.grid(row=3, column=1, sticky="nsew", padx=10, pady=10)
 
         available_header.grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
         availableConsumables.grid(row=5, column=0, sticky="nsew", padx=10, pady=10)
         availableNonConsumables.grid(row=5, column=1, sticky="nsew", padx=10, pady=10)
-        
 
+        outOfStock.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5,20))
+        
         inner_frame.grid_columnconfigure(0, weight=1)
         inner_frame.grid_columnconfigure(1, weight=1)
 
@@ -335,16 +363,14 @@ if __name__ == "__main__":
         def resize_inner_frame(event):
             canvas.itemconfig(inner_window, width=event.width)
 
+
+        def on_tab_changed(event):
+            registry.destroy_popups(["Database"])
+        notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
         canvas.bind("<Configure>", resize_inner_frame)
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
-        registry.register(availableConsumables, ["Analytics"])
-        registry.register(availableNonConsumables, ["Analytics"])
-        registry.register(outOfStockConsumables, ["Analytics"]) 
-        registry.register(outOfStockNonConsumables, ["Analytics"])
-        registry.register(reorder, ["Analytics"])
-
-
+        
+        
     def nav(root):
         DB.init_db(db_path)
 
@@ -364,8 +390,8 @@ if __name__ == "__main__":
         notebook.add(database_manager_tab, text="Database Manager")
 
         # Initial load
-        analytics_content(notebook, analytics_tab)
         database_manager_content(notebook, database_manager_tab)
+        analytics_content(notebook, analytics_tab)
         
         registry.refresh_all(exceptions=["Early"])
 
@@ -373,7 +399,5 @@ if __name__ == "__main__":
     root = tk.Tk()
     style = ttk.Style()
     run_with_error_handling(root, nav, root)
-    root.lift()
-    root.focus_force()
     root.mainloop()
 

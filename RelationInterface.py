@@ -13,7 +13,7 @@ import copy
 from pathlib import Path
 
 class RelationInterface:
-    def __init__(self, relation_name: str, default_search_text: str, simple_search_field: str, db_path, default_filters=dict()):
+    def __init__(self, relation_name: str, default_search_text: str, simple_search_field: str, db_path, order_by=None, default_filters=dict()):
         self.relation_name = relation_name
         self.db_path = db_path
         self.simple_search_field = simple_search_field
@@ -23,6 +23,7 @@ class RelationInterface:
         self.on_search_field_changed(self.search_field_text)
         self.default_filters = copy.deepcopy(self.filter_dict)
         self.inactive_filters = None
+        self.order_by = order_by
         self.curr_results = []
 
     def is_filter_active(self):
@@ -62,7 +63,7 @@ class RelationInterface:
                         "clauses": [],
                         "params":[]
             }
-        
+        self.on_filter_changed(self.filter_dict)
         
 
     def on_item_clicked(self, item_index: int) -> Dict[str, Any]:
@@ -158,19 +159,6 @@ class RelationInterface:
                     )
         return True
     
-     
-    def on_batch_create_clicked(self, excel_file, sheet_name=0):
-        df = pd.read_excel(excel_file, sheet_name=sheet_name)
-
-        df = df[[col for col in df.columns if col in DB.get_columns(self.relation_name, self.db_path)]]
-
-        df = df.dropna(how="all")
-
-        item_list = df.to_dict(orient="records")
-
-        for item in item_list:
-            print(item)
-            self.on_create_item_clicked(item)
 
     def get_where_clauses_and_params(self):
         clauses = []
@@ -196,19 +184,30 @@ class RelationInterface:
         else:
             return ("", [])
 
-    def on_search_clicked(self) -> List[Dict[str, Any]]:
-        where_clause, params = self.get_where_clauses_and_params()
+    def after_search_clicked(self):
+        pass
+    
+    def before_search_clicked(self):
+        pass
 
+    def get_sql(self):
         query = f"SELECT * FROM {self.relation_name} "
-        
+        where_clause, params = self.get_where_clauses_and_params()
+        return (f"{query} {where_clause} {f"ORDER BY {self.order_by} DESC" if self.order_by is not None else ""}", params)
+
+    def on_search_clicked(self) -> List[Dict[str, Any]]:
+        self.before_search_clicked()
+
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA foreign_keys = ON;")
             cursor = conn.cursor()
-            cursor.execute(f"{query} {where_clause}", params)
+            cursor.execute(*self.get_sql())
             results = cursor.fetchall()
             columns = [desc[0] for desc in cursor.description]
-
         self.curr_results = [dict(zip(columns, row)) for row in results]
+
+
+        self.after_search_clicked()
         return self.curr_results
     
     def export_as_excel(self, exclude_columns=None, output_path="output.xlsx"):
@@ -217,13 +216,11 @@ class RelationInterface:
 
         if exclude_columns is None:
             exclude_columns = []
-       
-        query, params = DB.get_query(self, self.db_path)
         
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA foreign_keys = ON;")
             cursor = conn.cursor()
-            cursor.execute(query, params)
+            cursor.execute(*self.get_sql())
             data = cursor.fetchall()
             columns = [desc[0] for desc in cursor.description]
 

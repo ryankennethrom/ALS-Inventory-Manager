@@ -14,7 +14,7 @@ from entry_helpers import attach_datepicker, attach_listpicker, attach_fuzzy_lis
 import copy
 from tkinter import filedialog, messagebox
 import uuid
-
+import registry
 
 def generate_random_name(length=6):
     letters = string.ascii_uppercase
@@ -23,7 +23,7 @@ def generate_random_name(length=6):
     return f"PROD-{random_part}"
 
 class RelationWidget(ttk.LabelFrame):
-    def __init__(self, master, relation_interface, min_width=400, min_height=200, is_view=False, exclude_fields_on_update=[], exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
+    def __init__(self, master, relation_interface, labels=[], min_width=400, min_height=200, is_view=False, exclude_fields_on_update=[], exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
         super().__init__(master, text=title, padding=padding, **kwargs)
         self.title=title
         self.relation = relation_interface
@@ -37,6 +37,7 @@ class RelationWidget(ttk.LabelFrame):
         self.is_view = is_view
         self.min_width = min_width
         self.min_height = min_height
+        registry.register(self,labels)
         self.popup = None
         self.advance_button = None
         self.advanced_search_widgets = None
@@ -81,6 +82,7 @@ class RelationWidget(ttk.LabelFrame):
         inactive_filters = copy.deepcopy(self.get_filters(advanced_search_widgets, self.all_columns, self.all_column_types))
         popup.destroy()
         self.relation.on_filter_changed(inactive_filters)
+        self.relation.on_search_field_changed("")
         self.relation.set_current_filters_as_inactive()
         self.relation.set_current_filters_as_default()
 
@@ -158,9 +160,12 @@ class RelationWidget(ttk.LabelFrame):
         self.tree.heading(self.show_columns[-1], text=self.show_columns[-1], anchor="center")
         self.tree.column(self.show_columns[-1], stretch=True)
 
+        self.results_number = tk.Label(self, text=f"Results : {len(self.relation.curr_results)}", anchor="w")
+        self.results_number.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=0) 
+
         # Buttons Frame
         self.button_frame = ttk.Frame(self)
-        self.button_frame.grid(row=3, column=0, pady=5)
+        self.button_frame.grid(row=4, column=0, pady=5)
         if not self.is_view:
             ttk.Button(self.button_frame, text="Add", command=self.add).pack(side=tk.LEFT, padx=5)
             ttk.Button(self.button_frame, text="Delete", command=self.delete).pack(side=tk.LEFT, padx=5)
@@ -172,7 +177,8 @@ class RelationWidget(ttk.LabelFrame):
         popup.title(title)
         popup.transient(self.master)
         popup.resizable(False, False)
-        popup.attributes("-topmost", True)
+        # popup.attributes("-topmost", True)
+        popup.lift()
         return popup
 
     def create_frame(self, popup):
@@ -526,6 +532,7 @@ class RelationWidget(ttk.LabelFrame):
         def apply_filters(event=None):
             filters = self.get_filters(advanced_search_widgets, self.all_columns, self.all_column_types)
             self.relation.on_filter_changed(filters)
+            self.relation.on_search_field_changed(self.relation.search_field_text)
             self.relation.on_search_clicked()
             self.update_table()
             popup.destroy()
@@ -533,7 +540,7 @@ class RelationWidget(ttk.LabelFrame):
         self.apply_filters_button = ttk.Button(button_frame, text="Apply", command=apply_filters)
         self.apply_filters_button.pack(side="left", padx=5)
         ttk.Button(button_frame, text="Reset", command=reset_filters).pack(side="left", padx=5)
-        ttk.Button(button_frame, text="Cancel", command=popup.withdraw).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Cancel", command=popup.destroy).pack(side="left", padx=5)
 
         self.hold_popup(popup)
     
@@ -558,6 +565,7 @@ class RelationWidget(ttk.LabelFrame):
         else:
             self.tree.configure(style="Treeview")
 
+        self.results_number.configure(text=f"Results : {len(self.relation.curr_results)}")
         self.configure(text=f"{self.title} {" ".join(widget_status)}") 
 
     def on_double_click(self, event):
@@ -664,16 +672,12 @@ class RelationWidget(ttk.LabelFrame):
         frame.pack()
 
         entries = {}
-        is_first_field = True
         for i, col in enumerate(self.all_columns):
             if self.create_item_columns and col not in self.create_item_columns:
                 continue
             ttk.Label(frame, text=f"{col}:").grid(row=i, column=0, sticky="e", pady=2)
             entry = ttk.Entry(frame)
             attach_helper(self.master, col, entry, self.relation.db_path, self.relation.relation_name, self.all_columns, self.all_column_types)
-            if is_first_field == True:
-                entry.focus_set()
-                is_first_field = False
             entry.grid(row=i, column=1, pady=2, padx=5)
             entries[col] = entry
 
