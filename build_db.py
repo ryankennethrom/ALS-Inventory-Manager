@@ -152,16 +152,12 @@ if __name__ == "__main__":
 
     merged = merged.drop(columns=['ProductName_lower'])
 
-    merged.loc[merged["ProductName"] == "Centrifuge Tubes", "IsConsumable"] = 'n'
-    merged.loc[merged["ProductName"] == "FTIR Tips Wide Bore (Chanshow)", "IsConsumable"] = 'n'
-    merged.loc[merged["ProductName"] == "GC Caps Blue", "IsConsumable"] = 'n'
-    merged.loc[merged["ProductName"] == "KF Silver Caps with White Septa", "IsConsumable"] = 'n'
-    merged.loc[merged["ProductName"] == "Tubing, Black-Black PVCSolva 2-Stop 0.76mm pkg/12", "IsConsumable"] = 'n'
-    merged.loc[merged["ProductName"] == "Tubing, Grey-Grey Solva 2-Stop 1.3mm", "IsConsumable"] = 'n'
-
-    with sqlite3.connect(db_path) as conn:
-        conn.execute("PRAGMA foreign_keys = ON;")
-        merged.to_sql('Products', conn, if_exists='append', index=False)
+    # merged.loc[merged["ProductName"] == "Centrifuge Tubes", "IsConsumable"] = 'n'
+    # merged.loc[merged["ProductName"] == "FTIR Tips Wide Bore (Chanshow)", "IsConsumable"] = 'n'
+    # merged.loc[merged["ProductName"] == "GC Caps Blue", "IsConsumable"] = 'n'
+    # merged.loc[merged["ProductName"] == "KF Silver Caps with White Septa", "IsConsumable"] = 'n'
+    # merged.loc[merged["ProductName"] == "Tubing, Black-Black PVCSolva 2-Stop 0.76mm pkg/12", "IsConsumable"] = 'n'
+    # merged.loc[merged["ProductName"] == "Tubing, Grey-Grey Solva 2-Stop 1.3mm", "IsConsumable"] = 'n'
 
     id_df = excel_to_dataframe("./test.xlsm", "Inventory_Detailed", {"Product Name":"ProductName", "LOT":"LOT", "Quantity":"Quantity", "Date Received":"DateReceived", "Date Expired":"ExpiryDate", "Date Opened": "DateOpened", "Date Finished": "DateFinished", "PO#":"PONumber", "ALS Item#": "AlsItemNumber", "Vendor Item #":"VendorItemNumber"})
     
@@ -199,6 +195,15 @@ if __name__ == "__main__":
     # Update df2 ProductName using the mapping
     id_df['ProductName'] = id_df['ProductName'].str.lower().map(mapping).fillna(id_df['ProductName'])
     print(f"Number of ComsumableLogs : {len(id_df)}")
+
+    merged["IsConsumable"] = 'n'
+    merged.loc[merged["ProductName"].isin(id_df["ProductName"]), 'IsConsumable'] = 'y'
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA foreign_keys = ON;")
+        merged.to_sql('Products', conn, if_exists='append', index=False)
+
+
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
         # id_df.to_sql('ConsumableLogs', conn, if_exists='append', index=False)
@@ -226,6 +231,11 @@ if __name__ == "__main__":
 
     i_df = excel_to_dataframe("./test.xlsm", "Inventory", {"Product Name":"ProductName", "Quantity":"Quantity" })
     i_df = i_df.dropna(subset=["ProductName"])
+
+    mapping = merged.set_index(merged['ProductName'].str.lower())['ProductName'].to_dict()
+    i_df['ProductName'] = i_df['ProductName'].str.lower().map(mapping).fillna(i_df['ProductName'])
+
+
     prod_quant = pd.merge(i_df, merged, on=['ProductName'], how='outer')
     prod_quant = prod_quant[prod_quant['IsConsumable'] != 'y']
     prod_quant = prod_quant.drop(columns=['IsConsumable', 'UnitOfMeasure', 'ItemDescription',
@@ -233,6 +243,7 @@ if __name__ == "__main__":
     prod_quant["Initials"] = "RR"
     prod_quant["ActionType"] = "Received"
     prod_quant["Date"] = "1998-01-01"
+
 
     na_rows = prod_quant[prod_quant['Quantity'].isna()]
     
@@ -245,20 +256,18 @@ if __name__ == "__main__":
 
     print(f"Minimum Quantity : {prod_quant["Quantity"].min()}")
     print(prod_quant.columns)
-    
+    print(prod_quant[prod_quant["Quantity"]==-1.0])
+
     prod_quant = prod_quant[prod_quant["Quantity"] > 0]
     
-    mapping = merged.set_index(merged['ProductName'].str.lower())['ProductName'].to_dict()
-    prod_quant['ProductName'] = prod_quant['ProductName'].str.lower().map(mapping).fillna(prod_quant['ProductName'])
-    
-    
-    prod_quant = prod_quant[prod_quant["ProductName"] != "AN Std"]
-    prod_quant = prod_quant[prod_quant["ProductName"] != "ICP Std V26-10"]
-    prod_quant = prod_quant[prod_quant["ProductName"] != "ICP Std V26-500"]
-    prod_quant = prod_quant[prod_quant["ProductName"] != "Lithium Chloride, 2M in Ethanol 250mL"]
-    prod_quant = prod_quant[prod_quant["ProductName"] != "Conductivity TDS Std"]
-    prod_quant = prod_quant[prod_quant["ProductName"] != "Custom MA5 2000ug/g"]
-    
+    # prod_quant = prod_quant[prod_quant["ProductName"] != "AN Std"]
+    # prod_quant = prod_quant[prod_quant["ProductName"] != "ICP Std V26-10"]
+    # prod_quant = prod_quant[prod_quant["ProductName"] != "ICP Std V26-500"]
+    # prod_quant = prod_quant[prod_quant["ProductName"] != "Lithium Chloride, 2M in Ethanol 250mL"]
+    # prod_quant = prod_quant[prod_quant["ProductName"] != "Conductivity TDS Std"]
+    # prod_quant = prod_quant[prod_quant["ProductName"] != "Custom MA5 2000ug/g"]
+
+
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
         # id_df.to_sql('ConsumableLogs', conn, if_exists='append', index=False)
