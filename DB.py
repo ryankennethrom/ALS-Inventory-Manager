@@ -197,9 +197,10 @@ def init_db(db_path):
     
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS AvailableConsumables AS
-    SELECT *
-    FROM ConsumableLogs
-    WHERE DateFinished == '';
+    SELECT l.*, p.Station
+    FROM ConsumableLogs l
+    JOIN Products p ON p.ProductName = l.ProductName 
+    WHERE l.DateFinished == '';
     """)
     
     cursor.execute("""
@@ -232,7 +233,8 @@ def init_db(db_path):
         COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityReceived,
         COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityOpened,
         COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0)
-            - COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable
+            - COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
+        p.Station
     FROM Products p
     LEFT JOIN NonConsumableLogs l
         ON p.ProductName = l.ProductName

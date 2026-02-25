@@ -109,23 +109,23 @@ if __name__ == "__main__":
             exclude_fields_on_create=["id", "CreatedDateTime"],
             title="Non-consumable Logs"
         )
-        non_consumables.filter_dict["Date"]["predicate"] = "past 30 days"
-        right.advance_button.invoke()
-        right.apply_filters_button.invoke()
-        non_consumables.set_current_filters_as_default()
+        # non_consumables.filter_dict["Date"]["predicate"] = "past 30 days"
+        # right.advance_button.invoke()
+        # right.apply_filters_button.invoke()
+        # non_consumables.set_current_filters_as_default()
         
-        consumables.filter_dict["DateReceived"]["predicate"] = "past 30 days"
-        middle.advance_button.invoke()
-        middle.apply_filters_button.invoke()
-        consumables.set_current_filters_as_default()
+        # consumables.filter_dict["DateReceived"]["predicate"] = "past 30 days"
+        # middle.advance_button.invoke()
+        # middle.apply_filters_button.invoke()
+        # consumables.set_current_filters_as_default()
 
         middle.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
         left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
         right.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
         
         registry.register(left, ["Database"])
-        registry.register(middle, ["Database", "Early"])
-        registry.register(right, ["Database", "Early"])
+        registry.register(middle, ["Database"])
+        registry.register(right, ["Database"])
 
 
         def on_tab_changed(event):
@@ -181,6 +181,7 @@ if __name__ == "__main__":
         availableConsumablesRI = RelationInterface(
             relation_name="AvailableConsumables",
             default_search_text="",
+            order_by="DateReceived",
             simple_search_field="ProductName",
             db_path=db_path
         )

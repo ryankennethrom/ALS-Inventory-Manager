@@ -17,7 +17,7 @@ def humanize_error(e: Exception) -> tuple[str, str]:
         out["Short"]="Unit Price must be a number greater than or equal to zero."
     
     elif "Cannot add consumable log for a non-consumable product" in msg:
-        out["Short"]="The product is as a non-consumable. Please log it in Non-Consumable logs."
+        out["Short"]="Failed. This is a non-consumable product."
     
     elif "CHECK constraint failed: Alert >= 0" in msg:
         out["Short"]="Alert must be greater than or equal to zero."
@@ -49,6 +49,14 @@ def humanize_error(e: Exception) -> tuple[str, str]:
     elif "Cannot open more than total received quantity" in msg:
         out["Short"]="Cannot open more than total received quantity."
  
+    elif "CHECK constraint failed: (DateOpened == '' AND DateFinis" in msg:
+        out["Short"]="DateOpened must be populated before DateFinished."
+
+    elif "Cannot add non-consumable log for a consumable product" in msg:
+        out["Short"]="Failed. This is a consumable product."
+
+
+
     return (out["Short"],out["Details"])
 
 def run_with_error_handling(master, func, *args, **kwargs):

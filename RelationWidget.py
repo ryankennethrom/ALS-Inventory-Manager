@@ -155,9 +155,9 @@ class RelationWidget(ttk.LabelFrame):
 
         for i in range(len(self.show_columns)-1):
             col = self.show_columns[i]
-            self.tree.heading(col, text=col, anchor="center")
+            self.tree.heading(col, text=col, anchor="w")
             self.tree.column(col, stretch=False)
-        self.tree.heading(self.show_columns[-1], text=self.show_columns[-1], anchor="center")
+        self.tree.heading(self.show_columns[-1], text=self.show_columns[-1], anchor="w")
         self.tree.column(self.show_columns[-1], stretch=True)
 
         self.results_number = tk.Label(self, text=f"Results : {len(self.relation.curr_results)}", anchor="w")
