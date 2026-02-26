@@ -218,6 +218,8 @@ class RelationWidget(ttk.LabelFrame):
                     return
 
                 self.popup = self.create_popup(title=title)
+                
+                self.popup.withdraw()
                 popup = self.popup
                 frame = self.create_frame(popup)
 
@@ -236,6 +238,7 @@ class RelationWidget(ttk.LabelFrame):
 
                 tk.Button(frame, text="Export", command=confirm).pack()
                 
+                self.popup.deiconify()
                 self.hold_popup(popup)
                 popup.wait_window()
 
@@ -244,6 +247,7 @@ class RelationWidget(ttk.LabelFrame):
             def ask_columns_checkbox_popup(title):
                 popup = self.create_popup(title=title)
 
+                self.popup.withdraw()
                 frame = tk.Frame(popup, padx=20, pady=20)
                 frame.grid(sticky="nsew")
 
@@ -281,6 +285,7 @@ class RelationWidget(ttk.LabelFrame):
                 ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
 
                 
+                self.popup.deiconify()
                 self.hold_popup(popup)
                 popup.wait_window()
 
@@ -517,6 +522,7 @@ class RelationWidget(ttk.LabelFrame):
         if self.popup is not None and self.popup.winfo_exists():
             return
         self.popup = self.create_popup(title="Advanced Search")
+        self.popup.withdraw()
         popup = self.popup
         frame = self.create_frame(popup)
 
@@ -542,6 +548,7 @@ class RelationWidget(ttk.LabelFrame):
         ttk.Button(button_frame, text="Reset", command=reset_filters).pack(side="left", padx=5)
         ttk.Button(button_frame, text="Cancel", command=popup.destroy).pack(side="left", padx=5)
 
+        self.popup.deiconify()
         self.hold_popup(popup)
     
     def refresh(self):
@@ -582,6 +589,7 @@ class RelationWidget(ttk.LabelFrame):
         if self.popup is not None and self.popup.winfo_exists():
             return
         self.popup = self.create_popup(title="Update Item")
+        self.popup.withdraw()
 
         frame = ttk.Frame(self.popup, padding=20)
         frame.pack(fill="both", expand=True)
@@ -654,6 +662,7 @@ class RelationWidget(ttk.LabelFrame):
         y = self.winfo_rooty() + (self.winfo_height() // 2) - (self.popup.winfo_height() // 2)
         self.popup.geometry(f"+{x}+{y}")
         
+        self.popup.deiconify()
         self.hold_popup(self.popup)
 
     def search(self, event=None):
@@ -667,6 +676,7 @@ class RelationWidget(ttk.LabelFrame):
         if self.popup is not None and self.popup.winfo_exists():
             return
         self.popup = self.create_popup(title="Add A New Item")
+        self.popup.withdraw()
 
         frame = ttk.Frame(self.popup, padding=20)
         frame.pack()
@@ -708,6 +718,8 @@ class RelationWidget(ttk.LabelFrame):
 
         # Move popup without changing size
         self.popup.geometry(f"+{x}+{y}")
+
+        self.popup.deiconify()
         self.hold_popup(self.popup)
 
     def delete(self):
