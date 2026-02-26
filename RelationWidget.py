@@ -174,6 +174,7 @@ class RelationWidget(ttk.LabelFrame):
 
     def create_popup(self, title):
         popup = tk.Toplevel(self)
+        popup.withdraw()
         popup.title(title)
         popup.transient(self.master)
         popup.resizable(False, False)
@@ -219,7 +220,6 @@ class RelationWidget(ttk.LabelFrame):
 
                 self.popup = self.create_popup(title=title)
                 
-                self.popup.withdraw()
                 popup = self.popup
                 frame = self.create_frame(popup)
 
@@ -247,7 +247,6 @@ class RelationWidget(ttk.LabelFrame):
             def ask_columns_checkbox_popup(title):
                 popup = self.create_popup(title=title)
 
-                self.popup.withdraw()
                 frame = tk.Frame(popup, padx=20, pady=20)
                 frame.grid(sticky="nsew")
 
@@ -522,7 +521,6 @@ class RelationWidget(ttk.LabelFrame):
         if self.popup is not None and self.popup.winfo_exists():
             return
         self.popup = self.create_popup(title="Advanced Search")
-        self.popup.withdraw()
         popup = self.popup
         frame = self.create_frame(popup)
 
@@ -589,7 +587,6 @@ class RelationWidget(ttk.LabelFrame):
         if self.popup is not None and self.popup.winfo_exists():
             return
         self.popup = self.create_popup(title="Update Item")
-        self.popup.withdraw()
 
         frame = ttk.Frame(self.popup, padding=20)
         frame.pack(fill="both", expand=True)
@@ -676,7 +673,6 @@ class RelationWidget(ttk.LabelFrame):
         if self.popup is not None and self.popup.winfo_exists():
             return
         self.popup = self.create_popup(title="Add A New Item")
-        self.popup.withdraw()
 
         frame = ttk.Frame(self.popup, padding=20)
         frame.pack()

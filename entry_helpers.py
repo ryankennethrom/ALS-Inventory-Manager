@@ -9,12 +9,12 @@ def attach_datepicker(entry):
     
     calendar_window = None
     focus_in_id = None
-    focus_out_id = None
+    button_down_id = None
     entry.focused_entry = False
     entry.focused_calendar = False
 
     def show_calendar(event=None):
-        nonlocal focus_out_id
+        nonlocal button_down_id
         nonlocal focus_in_id
         nonlocal calendar_window
 
@@ -67,21 +67,23 @@ def attach_datepicker(entry):
                 pw = int(popup.winfo_width())
                 ph = int(popup.winfo_height())
 
-            except ValueError:
+            except Exception:
+                parent.unbind("<Button-1>", button_down_id)
                 calendar_window.destroy()
                 return
 
-            if px <= x <= px + pw and py <= y <= py + ph:
+            if ( px <= x <= px + pw and py <= y <= py + ph ) :
                 return
             else:
+                parent.unbind("<Button-1>", button_down_id)
                 calendar_window.destroy()
 
         cal.bind("<<CalendarSelected>>", select_date)
 
-        parent.bind("<Button-1>", close_if_out_of_focus)
+        button_down_id = parent.bind("<Button-1>", close_if_out_of_focus)
         parent.bind("<Tab>", lambda e: calendar_window.destroy()) 
         parent.bind("<Unmap>", lambda e: calendar_window.destroy())
-    focus_in_id = entry.bind("<FocusIn>", show_calendar)
+    focus_in_id = entry.bind("<Button-1>", show_calendar)
 
 
 def attach_listpicker(entry, options_list):
@@ -266,7 +268,7 @@ def attach_fuzzy_list(entry, data):
                 pw = int(popup.winfo_width())
                 ph = int(popup.winfo_height())
 
-            except ValueError:
+            except Exception:
                 dropdown.destroy()
                 return
 

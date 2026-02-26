@@ -10,16 +10,33 @@ import sys
 import ctypes
 import registry
 import datetime
+import argparse
 
 if __name__ == "__main__":
-    TEST_MODE = "--test" in sys.argv
+    parser = argparse.ArgumentParser(description="ALS Inventory Manager")
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Run in test mode"
+    )
+    args = parser.parse_args()
+
+    VERSION = 2
+    TEST_MODE = args.test
     PROD_MODE = not TEST_MODE
-    
+
     if TEST_MODE:
         db_path = "./inventory.db"
     else:
         db_path = "Z:/InventoryAppData/inventory.db"
-    
+
+    DB.init_db(db_path, test=TEST_MODE)
+
+    with sqlite3.connect(db_path) as conn:
+        latest_deployed = DB.get_latest_app_version(conn)
+        if latest_deployed < VERSION:
+            DB.set_latest_app_version(conn, VERSION)
+
     def stop_if_instance_active():
         # Make sure one only one process exists
         mutex_name = "ALS Inventory Manager"
@@ -109,16 +126,7 @@ if __name__ == "__main__":
             exclude_fields_on_create=["id", "CreatedDateTime"],
             title="Non-consumable Logs"
         )
-        # non_consumables.filter_dict["Date"]["predicate"] = "past 30 days"
-        # right.advance_button.invoke()
-        # right.apply_filters_button.invoke()
-        # non_consumables.set_current_filters_as_default()
         
-        # consumables.filter_dict["DateReceived"]["predicate"] = "past 30 days"
-        # middle.advance_button.invoke()
-        # middle.apply_filters_button.invoke()
-        # consumables.set_current_filters_as_default()
-
         middle.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
         left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
         right.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
@@ -373,14 +381,16 @@ if __name__ == "__main__":
         
         
     def nav(root):
-        DB.init_db(db_path)
 
         root.title("ALS Inventory Manager")
         root.geometry("1200x700")
 
-        # Create Notebook (tab container)
+         # NOTEBOOK in row 1 (below the warning)
         notebook = ttk.Notebook(root)
-        notebook.pack(fill="both", expand=True)
+        notebook.grid(row=1, column=0, sticky="nsew")  # fill space
+
+        root.grid_rowconfigure(1, weight=1)
+        root.grid_columnconfigure(0, weight=1)
 
         # Create frames (each tab needs a frame)
         analytics_tab = ttk.Frame(notebook)
@@ -399,6 +409,24 @@ if __name__ == "__main__":
 
     root = tk.Tk()
     style = ttk.Style()
+
     run_with_error_handling(root, nav, root)
+
+    def show_warning_if_app_outdated():
+        if latest_deployed is not None and latest_deployed > VERSION:
+            warning_frame = tk.Frame(root, bg="#8B0000")
+            warning_frame.grid(row=0, column=0, sticky="ew")  # fill horizontally
+
+            tk.Label(
+                warning_frame,
+                text=f"This application is outdated (Ver. {VERSION}). Some features may not work properly. Please grab the latest one.",
+                bg="#8B0000",
+                fg="white",
+                font=("Segoe UI", 10, "bold"),
+                pady=8
+            ).pack(fill="x")            
+    registry.on_table_update(show_warning_if_app_outdated) 
+    show_warning_if_app_outdated()
+
     root.mainloop()
 

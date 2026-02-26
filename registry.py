@@ -1,3 +1,5 @@
+import types
+
 relation_widgets = dict()
 refresh_callbacks = dict()
 
@@ -38,3 +40,16 @@ def destroy_popups(parents):
                 continue
             if relation_widget.popup is not None:
                 relation_widget.popup.destroy()
+
+def on_table_update(callback, exceptions=[]):
+    parents = {parent for parent in relation_widgets.keys() if parent not in exceptions}
+    finished = set()
+    for parent in parents:
+        for relation_widget in relation_widgets[parent]:
+            if relation_widget.relation.relation_name in finished:
+                continue
+            relation_widget.update_table_original = relation_widget.update_table
+            def callback_after_table_update(obj):
+                obj.update_table_original()
+                callback()
+            relation_widget.update_table = types.MethodType(callback_after_table_update, relation_widget)

@@ -7,7 +7,7 @@ def connect(db_path):
     conn.execute("PRAGMA foreign_keys = ON;")  # ensure FK checks
     return conn
 
-def init_db(db_path):
+def init_db(db_path, test=False):
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON;")
     cursor = conn.cursor()
@@ -126,6 +126,14 @@ def init_db(db_path):
                 ON DELETE RESTRICT
         ) STRICT;
     """)
+
+    # ---------- Application Details ----------
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS AppVersion (
+            OnlyRow INTEGER PRIMARY KEY CHECK (OnlyRow = 1),
+            Version INTEGER NOT NULL DEFAULT 1
+        ) STRICT;
+    """)
     
     # ---------- Triggers ----------
     cursor.execute("""
@@ -154,8 +162,8 @@ def init_db(db_path):
     END;
     """)
 
-
-    cursor.execute("DROP TRIGGER IF EXISTS limit_nonconsumable_opened;")
+    if test:
+        cursor.execute("DROP TRIGGER IF EXISTS limit_nonconsumable_opened;")
 
     cursor.execute("""
     CREATE TRIGGER limit_nonconsumable_opened
@@ -203,7 +211,8 @@ def init_db(db_path):
     WHERE l.DateFinished == '';
     """)
     
-    cursor.execute("""
+    if test:
+        cursor.execute("""
     DROP VIEW IF EXISTS OutOfStockNonConsumables;
     """)
     
@@ -222,7 +231,8 @@ def init_db(db_path):
     HAVING TotalQuantityReceived <= TotalQuantityOpened;
     """)
 
-    cursor.execute("""
+    if test:
+        cursor.execute("""
     DROP VIEW IF EXISTS AvailableNonConsumables;
     """)
  
@@ -252,8 +262,9 @@ def init_db(db_path):
     GROUP BY p.ProductName
     """)
 
-
-    cursor.execute(""" DROP VIEW IF EXISTS ReOrderList; """)
+    
+    if test:
+        cursor.execute(""" DROP VIEW IF EXISTS ReOrderList; """)
 
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS ReOrderList AS
@@ -278,7 +289,8 @@ def init_db(db_path):
       AND COALESCE(n.TotalQuantityAvailable, 0) <= p.Alert;
     """)
 
-    cursor.execute(""" DROP VIEW IF EXISTS OutOfStock; """)
+    if test:
+        cursor.execute(""" DROP VIEW IF EXISTS OutOfStock; """)
     
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS OutOfStock AS
@@ -475,3 +487,19 @@ def get_stations(db_path):
         except Exception as e:
             print("Error fetching stations:", e)
             return []
+
+def set_latest_app_version(conn, version: int):
+    with conn:
+        conn.execute("""
+            INSERT INTO AppVersion (OnlyRow, Version)
+            VALUES (1, ?)
+            ON CONFLICT(OnlyRow)
+            DO UPDATE SET Version = excluded.Version;
+        """, (version,))
+
+def get_latest_app_version(conn) -> int:
+    cursor = conn.execute("""
+        SELECT Version FROM AppVersion WHERE OnlyRow = 1
+    """)
+    row = cursor.fetchone()
+    return row[0] if row else 1  # default fallback
