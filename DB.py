@@ -166,7 +166,7 @@ def init_db(db_path, test=False):
         cursor.execute("DROP TRIGGER IF EXISTS limit_nonconsumable_opened;")
 
     cursor.execute("""
-    CREATE TRIGGER limit_nonconsumable_opened
+    CREATE TRIGGER IF NOT EXISTS limit_nonconsumable_opened
     BEFORE INSERT ON NonConsumableLogs
     FOR EACH ROW
     WHEN NEW.ActionType = 'Opened'
@@ -218,7 +218,7 @@ def init_db(db_path, test=False):
     
     # Create the new view
     cursor.execute("""
-    CREATE VIEW OutOfStockNonConsumables AS
+    CREATE VIEW IF NOT EXISTS OutOfStockNonConsumables AS
     SELECT
         p.ProductName,
         COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityReceived,
@@ -237,7 +237,7 @@ def init_db(db_path, test=False):
     """)
  
     cursor.execute("""
-    CREATE VIEW AvailableNonConsumables AS
+    CREATE VIEW IF NOT EXISTS AvailableNonConsumables AS
     SELECT
         p.ProductName,
         COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityReceived,
