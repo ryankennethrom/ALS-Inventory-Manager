@@ -21,7 +21,13 @@ def init_db(db_path, test=False):
         ItemDescription TEXT NOT NULL,
         Station TEXT NOT NULL,
         IsConsumable TEXT NOT NULL CHECK (IsConsumable IN ('n', 'y')),
-        Alert INTEGER NOT NULL CHECK (Alert >= 0) 
+        Price REAL DEFAULT 0 CHECK (Price >= 0),
+        LowSupplyCount INTEGER NOT NULL CHECK (LowSupplyCount >= 0),
+        EmergencyCount INTEGER NOT NULL DEFAULT 0 CHECK (EmergencyCount >= 0),
+        AlsItemNumber TEXT NOT NULL,
+        VendorNumber TEXT NOT NULL,
+        VendorItemNumber TEXT NOT NULL,
+        CHECK ( LowSupplyCount >= EmergencyCount )
     ) STRICT;
     """)
     
@@ -80,10 +86,6 @@ def init_db(db_path, test=False):
                     (FinishedInitials == '' AND DateFinished == '') or (FinishedInitials != '' AND DateFinished != '')
                 ),
             PONumber TEXT NOT NULL,
-            AlsItemNumber TEXT NOT NULL,
-            VendorNumber TEXT NOT NULL,
-            VendorItemNumber TEXT NOT NULL,
-
 
             -- Lifecycle state consistency
             CHECK (
@@ -121,6 +123,8 @@ def init_db(db_path, test=False):
                     ActionType IN ('Received', 'Opened')
                 ),
 
+            PONumber TEXT NOT NULL,
+
             FOREIGN KEY (ProductName)
                 REFERENCES Products(ProductName)
                 ON DELETE RESTRICT
@@ -136,6 +140,19 @@ def init_db(db_path, test=False):
     """)
     
     # ---------- Triggers ----------
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS already_opened_one
+    BEFORE UPDATE ON ConsumableLogs
+    BEGIN
+        SELECT
+            CASE
+                WHEN EXISTS (SELECT 1 FROM ConsumableLogs WHERE ProductName = NEW.ProductName AND id != NEW.id AND DateFinished = '' AND DateOpened != '' AND NEW.DateOpened > DateOpened)
+                THEN RAISE(ABORT, 'Cannot open when there is an unfinished item')
+            END;
+    END;
+    """)
+
+
     cursor.execute("""
     CREATE TRIGGER IF NOT EXISTS check_non_consumable_product
     BEFORE INSERT ON NonConsumableLogs
@@ -268,10 +285,10 @@ def init_db(db_path, test=False):
 
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS ReOrderList AS
-    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Station, p.Alert
+    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Station, p.LowSupplyCount
     FROM ConsumablesAvailableTotaled c
     LEFT JOIN Products p ON c.ProductName = p.ProductName
-    WHERE c.TotalQuantityAvailable <= p.Alert
+    WHERE c.TotalQuantityAvailable <= p.LowSupplyCount
 
     UNION ALL
 
@@ -281,47 +298,73 @@ def init_db(db_path, test=False):
         p.IsConsumable,
         p.UnitOfMeasure,
         p.Station,
-        p.Alert
+        p.LowSupplyCount
     FROM Products p
     LEFT JOIN AvailableNonConsumables n
         ON n.ProductName = p.ProductName
     WHERE p.IsConsumable = 'n'
-      AND COALESCE(n.TotalQuantityAvailable, 0) <= p.Alert;
+      AND COALESCE(n.TotalQuantityAvailable, 0) <= p.LowSupplyCount;
     """)
 
     if test:
-        cursor.execute(""" DROP VIEW IF EXISTS OutOfStock; """)
-    
+        cursor.execute(""" DROP VIEW IF EXISTS DangerouslyLow; """)
+
     cursor.execute("""
-    CREATE VIEW IF NOT EXISTS OutOfStock AS
-    SELECT
-        p.ProductName,
-        COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0)
-            - COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
-        p.Station,
-        p.IsConsumable
-    FROM Products p
-    LEFT JOIN NonConsumableLogs l
-        ON p.ProductName = l.ProductName
-    WHERE p.IsConsumable = 'n'
-    GROUP BY p.ProductName
-    HAVING TotalQuantityAvailable <= 0
+    CREATE VIEW IF NOT EXISTS DangerouslyLow AS
+    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Station, p.EmergencyCount
+    FROM ConsumablesAvailableTotaled c
+    LEFT JOIN Products p ON c.ProductName = p.ProductName
+    WHERE c.TotalQuantityAvailable <= p.EmergencyCount
 
     UNION ALL
 
     SELECT
         p.ProductName,
-        COALESCE(SUM(CASE WHEN l2.DateFinished = '' THEN l2.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
+        COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
+        p.IsConsumable,
+        p.UnitOfMeasure,
         p.Station,
-        p.IsConsumable
+        p.EmergencyCount
     FROM Products p
-    LEFT JOIN ConsumableLogs l2
-        ON p.ProductName = l2.ProductName
-    WHERE p.IsConsumable = 'y'
-    GROUP BY p.ProductName
-    HAVING TotalQuantityAvailable <= 0;
-
+    LEFT JOIN AvailableNonConsumables n
+        ON n.ProductName = p.ProductName
+    WHERE p.IsConsumable = 'n'
+      AND COALESCE(n.TotalQuantityAvailable, 0) <= p.EmergencyCount;
     """)
+
+    if test:
+        cursor.execute(""" DROP VIEW IF EXISTS OutOfStock; """)
+    
+        cursor.execute("""
+        CREATE VIEW IF NOT EXISTS OutOfStock AS
+        SELECT
+            p.ProductName,
+            COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0)
+                - COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
+            p.Station,
+            p.IsConsumable
+        FROM Products p
+        LEFT JOIN NonConsumableLogs l
+            ON p.ProductName = l.ProductName
+        WHERE p.IsConsumable = 'n'
+        GROUP BY p.ProductName
+        HAVING TotalQuantityAvailable <= 0
+
+        UNION ALL
+
+        SELECT
+            p.ProductName,
+            COALESCE(SUM(CASE WHEN l2.DateFinished = '' THEN l2.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
+            p.Station,
+            p.IsConsumable
+        FROM Products p
+        LEFT JOIN ConsumableLogs l2
+            ON p.ProductName = l2.ProductName
+        WHERE p.IsConsumable = 'y'
+        GROUP BY p.ProductName
+        HAVING TotalQuantityAvailable <= 0;
+
+        """)
 
     conn.commit()
     conn.close()

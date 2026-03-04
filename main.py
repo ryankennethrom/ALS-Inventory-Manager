@@ -50,25 +50,46 @@ if __name__ == "__main__":
             sys.exit(0)
 
     stop_if_instance_active()
-    
-   
 
-    def database_manager_content(notebook, root):
+    def non_cons_log_content(notebook, root):
         # -------------------- Main Window --------------------
         root.grid_rowconfigure(0, weight=1)
         root.grid_columnconfigure(0, weight=1)
-        root.grid_columnconfigure(1, weight=1)
-        root.grid_columnconfigure(2, weight=1)
-
 
         # ---------- RelationInterface instances ----------
-        products = RelationInterface(
-            relation_name="Products",
+
+        non_consumables = RelationInterface(
+            relation_name="NonConsumableLogs",
             default_search_text="",
+            order_by="Date",
             simple_search_field="ProductName",
             db_path=db_path
         )
 
+        # ---------- InventoryTable widgets ----------
+
+       
+        non_cons_widg = RelationWidget(
+            root,
+            non_consumables,
+            exclude_fields_on_update=["CreatedDateTime"],
+            exclude_fields_on_create=["id", "CreatedDateTime"],
+            title="Non-consumable Logs",
+            labels=["Logs"]
+        )
+        
+        non_cons_widg.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+        def on_tab_changed(event):
+            registry.destroy_all_popups()
+        notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
+
+    def cons_log_content(notebook, root):
+        # -------------------- Main Window --------------------
+        root.grid_rowconfigure(0, weight=1)
+        root.grid_columnconfigure(0, weight=1)
+
+        # ---------- RelationInterface instances ----------
         consumables = RelationInterface(
             relation_name="ConsumableLogs",
             default_search_text="",
@@ -96,48 +117,50 @@ if __name__ == "__main__":
 
         consumables.on_create_item_clicked = types.MethodType(create_item_quantity_times, consumables)
 
-        non_consumables = RelationInterface(
-            relation_name="NonConsumableLogs",
+        # ---------- InventoryTable widgets ----------
+        cons_widg = RelationWidget(
+            root,
+            consumables,
+            exclude_fields_on_update=["CreatedDateTime"],
+            exclude_fields_on_create=["id", "CreatedDateTime"],
+            title="Consumable Logs",
+            labels=["Logs"]
+        )
+
+        cons_widg.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+        def on_tab_changed(event):
+            registry.destroy_all_popups()
+        notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
+
+
+    
+    def product_manager_content(notebook, root):
+        # -------------------- Main Window --------------------
+        root.grid_rowconfigure(0, weight=1)
+        root.grid_columnconfigure(0, weight=1)
+
+        # ---------- RelationInterface instances ----------
+        products = RelationInterface(
+            relation_name="Products",
             default_search_text="",
-            order_by="Date",
             simple_search_field="ProductName",
             db_path=db_path
         )
+        
 
         # ---------- InventoryTable widgets ----------
         left = RelationWidget(
             root,
             products,
-            title="Products"
+            title="Products",
+            labels=["Products"]
         )
 
-        middle = RelationWidget(
-            root,
-            consumables,
-            exclude_fields_on_update=["CreatedDateTime"],
-            exclude_fields_on_create=["id", "CreatedDateTime"],
-            title="Consumable Logs"
-        )
-        
-        right = RelationWidget(
-            root,
-            non_consumables,
-            exclude_fields_on_update=["CreatedDateTime"],
-            exclude_fields_on_create=["id", "CreatedDateTime"],
-            title="Non-consumable Logs"
-        )
-        
-        middle.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
         left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-        right.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
-        
-        registry.register(left, ["Database"])
-        registry.register(middle, ["Database"])
-        registry.register(right, ["Database"])
-
 
         def on_tab_changed(event):
-            registry.destroy_popups(["Analytics"])
+            registry.destroy_all_popups()
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
 
 
@@ -165,22 +188,9 @@ if __name__ == "__main__":
         inner_frame.bind("<Configure>", on_frame_configure)
 
         # ------------------ RelationInterface instances ------------------
-        outOfStockConsumablesRI = RelationInterface(
-            relation_name="OutOfStockConsumables",
-            default_search_text="",
-            simple_search_field="ProductName",
-            db_path=db_path
-        )
 
-        outOfStockNonConsumablesRI = RelationInterface(
-            relation_name="OutOfStockNonConsumables",
-            default_search_text="",
-            simple_search_field="ProductName",
-            db_path=db_path
-        )
-
-        outOfStockRI = RelationInterface(
-            relation_name="OutOfStock",
+        dangerouslyLowRI = RelationInterface(
+            relation_name="DangerouslyLow",
             default_search_text="",
             simple_search_field="ProductName",
             db_path=db_path
@@ -209,26 +219,9 @@ if __name__ == "__main__":
         )
 
         # ------------------ Add RelationWidgets in 2x2 grid ------------------
-        outOfStockConsumables = RelationWidget(
+        dangerouslyLow = RelationWidget(
             inner_frame,
-            outOfStockConsumablesRI,
-            labels=["Analytics"],
-            is_view=True,
-            title="Consumables"
-        )
-
-        outOfStockNonConsumables = RelationWidget(
-            inner_frame,
-            outOfStockNonConsumablesRI,
-            labels=["Analytics"],
-            exclude_fields_on_show=["TotalQuantityReceived", "TotalQuantityOpened"],
-            is_view=True,
-            title="Non-consumables"
-        )
-
-        outOfStock = RelationWidget(
-            inner_frame,
-            outOfStockRI,
+            dangerouslyLowRI,
             labels=["Analytics"],
             is_view=True,
             title="Consumables/Non-consumables"
@@ -262,20 +255,13 @@ if __name__ == "__main__":
 
         # -------- Widgets -----------
         low_supply_header_value = len(reorder_ri.curr_results)
-        out_of_stock_header_value = len(outOfStockConsumablesRI.curr_results)+len(outOfStockNonConsumablesRI.curr_results)
         
         # Top header frame
         top_header_frame = tk.Frame(inner_frame)
         top_header_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 0))
         top_header_frame.grid_columnconfigure(0, weight=1)  # Label expands to left
 
-        # Low Supply label
-        reorder_header = tk.Label(
-            top_header_frame,
-            text=f"Low Supply ({low_supply_header_value})",
-            font=("Segoe UI", 16, "bold")
-        )
-        reorder_header.grid(row=0, column=0, sticky="w")
+       
 
         # Last Updated label (starts empty)
         last_updated_label = tk.Label(
@@ -296,10 +282,16 @@ if __name__ == "__main__":
         refresh_button = tk.Button(top_header_frame, text="Refresh Analytics", command=refresh_button)
         refresh_button.grid(row=0, column=2, sticky="e")
 
-
-        out_of_stock_header = tk.Label(
+         # Low Supply label
+        reorder_header = tk.Label(
             inner_frame,
-            text=f"Out Of Stock ({str(out_of_stock_header_value)})",
+            text=f"Low ({low_supply_header_value})",
+            font=("Segoe UI", 16, "bold")
+        )
+
+        dangerously_low_header = tk.Label(
+            inner_frame,
+            text=f"Dangerously Low (Unknown)",
             font=("Segoe UI", 14, "bold")
         )
 
@@ -313,52 +305,28 @@ if __name__ == "__main__":
         def on_low_supply_tables_update():
             out = reorder_ri.on_search_clicked_original() 
             if reorder_ri.is_filter_equal(reorder_ri.default_filters):
-                reorder_header.configure(text=f"Low Supply ({str(len(reorder_ri.curr_results))})")
+                reorder_header.configure(text=f"Low ({str(len(reorder_ri.curr_results))})")
             return out 
         reorder_ri.on_search_clicked = on_low_supply_tables_update
+    
 
-        out_of_stock_values = {
-                "consumables": len(outOfStockConsumablesRI.curr_results),
-                "nonconsumables": len(outOfStockNonConsumablesRI.curr_results),
-        }
-     
-        def on_out_of_stock_tables_update(updating_ri):
-            out = updating_ri.on_search_clicked_original()
-            con_ri = outOfStockConsumablesRI
-            noncon_ri = outOfStockNonConsumablesRI
-            if con_ri.is_filter_equal(con_ri.default_filters):
-                out_of_stock_values["consumables"] = len(con_ri.curr_results)
-            if noncon_ri.is_filter_equal(noncon_ri.default_filters):
-                out_of_stock_values["nonconsumables"] = len(noncon_ri.curr_results)
-            out_of_stock_header.configure(text=f"Out Of Stock ({str(out_of_stock_values["consumables"]+out_of_stock_values["nonconsumables"])})")
-            return out
-
-
-
-        outOfStockConsumablesRI.on_search_clicked_original = outOfStockConsumablesRI.on_search_clicked
-        outOfStockNonConsumablesRI.on_search_clicked_original = outOfStockNonConsumablesRI.on_search_clicked
+        dangerouslyLowRI.on_search_clicked_original = dangerouslyLowRI.on_search_clicked
+        def on_danger_low_tables_update():
+            out = dangerouslyLowRI.on_search_clicked_original() 
+            if dangerouslyLowRI.is_filter_equal(dangerouslyLowRI.default_filters):
+                dangerously_low_header.configure(text=f"Dangerously Low ({str(len(dangerouslyLowRI.curr_results))})")
+            return out 
+        dangerouslyLowRI.on_search_clicked = on_danger_low_tables_update
         
-        outOfStockConsumablesRI.on_search_clicked = types.MethodType(on_out_of_stock_tables_update, outOfStockConsumablesRI)
-        outOfStockNonConsumablesRI.on_search_clicked = types.MethodType(on_out_of_stock_tables_update, outOfStockNonConsumablesRI)
+        dangerously_low_header.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+        dangerouslyLow.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5,20))
 
-        def on_out_of_stock_table_update():
-            if outOfStockRI.is_filter_equal(outOfStockRI.default_filters):
-                out_of_stock_header.configure(text=f"Out Of Stock ({str(len(outOfStockRI.curr_results))})")
-
-        outOfStockRI.after_search_clicked = on_out_of_stock_table_update
-
-
-        # Headers
-        reorder_header.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
-        reorder.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 20))
-
-        out_of_stock_header.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+        reorder_header.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+        reorder.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 20))
 
         available_header.grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
         availableConsumables.grid(row=5, column=0, sticky="nsew", padx=10, pady=10)
         availableNonConsumables.grid(row=5, column=1, sticky="nsew", padx=10, pady=10)
-
-        outOfStock.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5,20))
         
         inner_frame.grid_columnconfigure(0, weight=1)
         inner_frame.grid_columnconfigure(1, weight=1)
@@ -394,15 +362,21 @@ if __name__ == "__main__":
 
         # Create frames (each tab needs a frame)
         analytics_tab = ttk.Frame(notebook)
-        database_manager_tab = ttk.Frame(notebook)
+        cons_log_tab = ttk.Frame(notebook)
+        non_cons_log_tab = ttk.Frame(notebook)
+        product_manager_tab = ttk.Frame(notebook)
         
         # Add tabs to notebook
         notebook.add(analytics_tab, text="Analytics")
-        notebook.add(database_manager_tab, text="Database Manager")
+        notebook.add(cons_log_tab, text="Consumable Logs")
+        notebook.add(non_cons_log_tab, text="Non-consumable Logs")
+        notebook.add(product_manager_tab, text="Product Manager")
 
         # Initial load
-        database_manager_content(notebook, database_manager_tab)
+        cons_log_content(notebook, cons_log_tab)
+        non_cons_log_content(notebook, non_cons_log_tab)
         analytics_content(notebook, analytics_tab)
+        product_manager_content(notebook, product_manager_tab)
         
         registry.refresh_all(exceptions=["Early"])
 

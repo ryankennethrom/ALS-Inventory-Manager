@@ -55,6 +55,8 @@ def humanize_error(e: Exception) -> tuple[str, str]:
     elif "Cannot add non-consumable log for a consumable product" in msg:
         out["Short"]="Failed. This is a consumable product."
 
+    elif "Cannot open when there is an unfinished item" in msg:
+        out["Short"]="Cannot open when there is an unfinished item."
 
 
     return (out["Short"],out["Details"])

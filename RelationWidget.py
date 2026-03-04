@@ -52,18 +52,17 @@ class RelationWidget(ttk.LabelFrame):
                         fieldbackground="#ADD8E6",
                         bordercolor="#ADD8E6",
                         foreground="black")
-
+        
         def resize_columns(tree, results):
             f = tkfont.Font()
             max_width = dict()
-            padding = 10
 
             for col in self.all_columns:
-                max_width[col] = f.measure(col + " " * padding)  # small padding
+                max_width[col] = f.measure(col)  # small padding
 
             for item in results:
                 for col, val in item.items():
-                    width = f.measure(str(val) + " " * padding)  # small padding
+                    width = f.measure(str(val))  # small padding
                     if width > max_width[col]:
                         max_width[col] = width
 

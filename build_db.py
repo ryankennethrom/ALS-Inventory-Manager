@@ -118,46 +118,54 @@ if __name__ == "__main__":
     DB.delete_db(db_path)
     DB.init_db(db_path)
 
-    pm_df = excel_to_dataframe("./test.xlsm", "Product_Manager", {"Product Name":"ProductName", "UOM":"UnitOfMeasure", "Item Description":"ItemDescription", "Station":"Station", "Consumable":"IsConsumable"})
+    pm_df = excel_to_dataframe("./test.xlsm", "Product_Manager", {"Product Name":"ProductName", "UOM":"UnitOfMeasure", "Item Description":"ItemDescription", "Station":"Station", "Consumable":"IsConsumable", "Price$":"Price PM", "ALS Item #":"AlsItemNumber", "Vendor #": "VendorNumber", "Vendor Item #": "VendorItemNumber"})
+    pm_df['ProductName_lower'] = pm_df['ProductName'].str.lower()
     print(pm_df.head(5))
     print(pm_df.tail(5))
 
-    id_df = excel_to_dataframe("./test.xlsm", "Inventory", {"Product Name":"ProductName", "Consumable":"IsConsumable", "Alert number": "Alert"})
+    id_df = excel_to_dataframe("./test.xlsm", "Inventory", {"Product Name":"ProductName", "Alert number": "LowSupplyCount", "Price": "Price I", "ALS Item #":"AlsItemNumber", "Vendor Item#": "VendorItemNumber"})
     alert_df = id_df.dropna(subset=["ProductName"])
+    alert_df['ProductName_lower'] = alert_df['ProductName'].str.lower()
     print(alert_df.head(5))
     print(alert_df.tail(5))
 
 
-    merged = pd.merge(pm_df, alert_df, on=['ProductName','IsConsumable'], how='outer')
-    
-    print(merged.columns)
+    merged = pd.merge(pm_df, alert_df, on=['ProductName_lower'], how='outer')
+
     
     print(f"Merged with duplicates: {len(merged)}")
     
     is_consumable_nan_rows = merged[merged['IsConsumable'].isna()]
     print(f"IsConsumable Nan rows : {len(is_consumable_nan_rows)}")
-    print(merged)
 
-    merged = deduplicate(merged)
+    merged["Price"] = merged["Price I"].fillna(merged["Price PM"])
+    merged["ProductName"] = merged["ProductName_x"].fillna(merged["ProductName_y"])
+    merged["AlsItemNumber"] = merged["AlsItemNumber_x"].fillna(merged["AlsItemNumber_y"])
+    merged["VendorItemNumber"] = merged["VendorItemNumber_x"].fillna(merged["VendorItemNumber_y"])
     
-    merged['ProductName_lower'] = merged['ProductName'].str.lower()
-    merged = deduplicate(merged, col_name="ProductName_lower")
-
-    print(f"Rows after deduplication: {len(merged)}")
-    
-    merged['Alert'] = merged['Alert'].fillna(5)
+    merged['LowSupplyCount'] = merged['LowSupplyCount'].fillna(5)
     merged['UnitOfMeasure'] = merged['UnitOfMeasure'].fillna('Not yet set')
     merged['ItemDescription'] = merged['ItemDescription'].fillna('Not yet set')
     merged['Station'] = merged['Station'].fillna('Not yet set')
+    merged["VendorItemNumber"] = merged["VendorItemNumber"].fillna("")
+    merged["AlsItemNumber"] = merged["AlsItemNumber"].fillna("")
+    merged["VendorNumber"] = merged["VendorNumber"].fillna("")
 
     merged = merged.drop(columns=['ProductName_lower'])
-
-    # merged.loc[merged["ProductName"] == "Centrifuge Tubes", "IsConsumable"] = 'n'
-    # merged.loc[merged["ProductName"] == "FTIR Tips Wide Bore (Chanshow)", "IsConsumable"] = 'n'
-    # merged.loc[merged["ProductName"] == "GC Caps Blue", "IsConsumable"] = 'n'
-    # merged.loc[merged["ProductName"] == "KF Silver Caps with White Septa", "IsConsumable"] = 'n'
-    # merged.loc[merged["ProductName"] == "Tubing, Black-Black PVCSolva 2-Stop 0.76mm pkg/12", "IsConsumable"] = 'n'
-    # merged.loc[merged["ProductName"] == "Tubing, Grey-Grey Solva 2-Stop 1.3mm", "IsConsumable"] = 'n'
+    merged = merged.drop(columns=['ProductName_x'])
+    merged = merged.drop(columns=['ProductName_y'])
+    merged = merged.drop(columns=['Price I'])
+    merged = merged.drop(columns=['Price PM'])
+    merged = merged.drop(columns=['AlsItemNumber_x'])
+    merged = merged.drop(columns=['AlsItemNumber_y'])
+    merged = merged.drop(columns=['VendorItemNumber_x'])
+    merged = merged.drop(columns=['VendorItemNumber_y'])
+    
+    print(merged.columns)
+    print(len(merged))
+    with pd.option_context('display.max_columns', None):
+        print(merged.head(5))
+        print(merged.tail(5))
 
     id_df = excel_to_dataframe("./test.xlsm", "Inventory_Detailed", {"Product Name":"ProductName", "LOT":"LOT", "Quantity":"Quantity", "Date Received":"DateReceived", "Date Expired":"ExpiryDate", "Date Opened": "DateOpened", "Date Finished": "DateFinished", "PO#":"PONumber", "ALS Item#": "AlsItemNumber", "Vendor Item #":"VendorItemNumber"})
     
@@ -194,7 +202,7 @@ if __name__ == "__main__":
 
     # Update df2 ProductName using the mapping
     id_df['ProductName'] = id_df['ProductName'].str.lower().map(mapping).fillna(id_df['ProductName'])
-    print(f"Number of ComsumableLogs : {len(id_df)}")
+    print(f"Number of ConsumableLogs : {len(id_df)}")
 
     merged["IsConsumable"] = 'n'
     merged.loc[merged["ProductName"].isin(id_df["ProductName"]), 'IsConsumable'] = 'y'
@@ -239,11 +247,11 @@ if __name__ == "__main__":
     prod_quant = pd.merge(i_df, merged, on=['ProductName'], how='outer')
     prod_quant = prod_quant[prod_quant['IsConsumable'] != 'y']
     prod_quant = prod_quant.drop(columns=['IsConsumable', 'UnitOfMeasure', 'ItemDescription',
-       'Station', 'Alert'])
+       'Station', 'LowSupplyCount'])
     prod_quant["Initials"] = "RR"
     prod_quant["ActionType"] = "Received"
     prod_quant["Date"] = "1998-01-01"
-
+    prod_quant["PONumber"] = ""
 
     na_rows = prod_quant[prod_quant['Quantity'].isna()]
     
@@ -260,14 +268,6 @@ if __name__ == "__main__":
 
     prod_quant = prod_quant[prod_quant["Quantity"] > 0]
     
-    # prod_quant = prod_quant[prod_quant["ProductName"] != "AN Std"]
-    # prod_quant = prod_quant[prod_quant["ProductName"] != "ICP Std V26-10"]
-    # prod_quant = prod_quant[prod_quant["ProductName"] != "ICP Std V26-500"]
-    # prod_quant = prod_quant[prod_quant["ProductName"] != "Lithium Chloride, 2M in Ethanol 250mL"]
-    # prod_quant = prod_quant[prod_quant["ProductName"] != "Conductivity TDS Std"]
-    # prod_quant = prod_quant[prod_quant["ProductName"] != "Custom MA5 2000ug/g"]
-
-
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
         # id_df.to_sql('ConsumableLogs', conn, if_exists='append', index=False)
@@ -292,8 +292,4 @@ if __name__ == "__main__":
                 INSERT INTO NonConsumableLogs ({columns_str})
                 VALUES ({placeholders})
             ''', data_tuple)
-
-     # with sqlite3.connect(db_path) as conn:
-     #    conn.execute("PRAGMA foreign_keys = ON;")
-     #   prod_quant.to_sql('NonConsumableLogs', conn, if_exists='append', index=False)
 
