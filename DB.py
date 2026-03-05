@@ -146,12 +146,74 @@ def init_db(db_path, test=False):
     BEGIN
         SELECT
             CASE
-                WHEN EXISTS (SELECT 1 FROM ConsumableLogs WHERE ProductName = NEW.ProductName AND id != NEW.id AND DateFinished = '' AND DateOpened != '' AND NEW.DateOpened > DateOpened)
+                WHEN
+                    OLD.ProductName = NEW.ProductName AND
+                    EXISTS(SELECT 1 FROM ConsumableLogs WHERE ProductName = NEW.ProductName AND id != NEW.id AND DateFinished = '' AND DateOpened != '' AND NEW.DateOpened >= DateOpened)
                 THEN RAISE(ABORT, 'Cannot open when there is an unfinished item')
             END;
     END;
     """)
 
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS on_emergency_opened_consumables 
+    AFTER UPDATE ON ConsumableLogs
+    BEGIN
+        SELECT
+            CASE
+                WHEN 
+                    OLD.ProductName = NEW.ProductName AND 
+                    OLD.DateOpened = '' AND 
+                    NEW.DateOpened != '' AND 
+                    (SELECT COUNT(*) FROM ConsumableLogs WHERE ProductName = OLD.ProductName AND DateFinished = '' AND DateOpened = '') < (SELECT EmergencyCount FROM Products WHERE ProductName = OLD.ProductName)
+                THEN RAISE(FAIL, 'Attempt to use emergency supplies.')
+            END;
+    END;
+    """)
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS on_emergency_opened_non_consumables
+    AFTER INSERT ON NonConsumableLogs
+    BEGIN
+        SELECT
+            CASE
+                WHEN 
+                    NEW.ActionType = 'Opened' AND
+                    (SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = NEW.ProductName AND ActionType = 'Received') - (SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = NEW.ProductName AND ActionType = 'Opened') < (SELECT EmergencyCount FROM Products WHERE ProductName = NEW.ProductName)
+                THEN RAISE(FAIL, 'Attempt to use emergency supplies.')
+            END;
+    END;
+    """)
+
+    if test:
+        cursor.execute("DROP TRIGGER IF EXISTS on_update_negative_total;")
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS on_update_negative_total
+    AFTER UPDATE ON NonConsumableLogs
+    BEGIN
+        SELECT
+            CASE
+                WHEN ((SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = NEW.ProductName AND ActionType = 'Received') - (SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = NEW.ProductName AND ActionType = 'Opened') < 0) OR ((SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = OLD.ProductName AND ActionType = 'Received') - (SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = OLD.ProductName AND ActionType = 'Opened') < 0) 
+                THEN RAISE(ABORT, 'Cannot have negative total quantity')
+            END;
+    END;
+    """)
+
+
+    if test:
+        cursor.execute("DROP TRIGGER IF EXISTS on_delete_negative_total;")
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS on_delete_negative_total
+    BEFORE DELETE ON NonConsumableLogs
+    BEGIN
+        SELECT
+            CASE
+                WHEN (SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = OLD.ProductName AND ActionType = 'Received') - (SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = OLD.ProductName AND ActionType = 'Opened') - OLD.Quantity < 0
+                THEN RAISE(ABORT, 'Cannot have negative total quantity')
+            END;
+    END;
+    """)
 
     cursor.execute("""
     CREATE TRIGGER IF NOT EXISTS check_non_consumable_product
@@ -278,6 +340,22 @@ def init_db(db_path, test=False):
     WHERE p.IsConsumable = 'y'
     GROUP BY p.ProductName
     """)
+
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS ProductsTotalSupply AS
+    SELECT p.ProductName, COALESCE(c.TotalQuantityAvailable, 0) as TotalQuantityAvailable, p.Station, p.IsConsumable, p.UnitOfMeasure
+    FROM Products p
+    LEFT JOIN ConsumablesAvailableTotaled c ON c.ProductName = p.ProductName
+    WHERE p.IsConsumable = 'y'
+
+    UNION ALL
+    
+    SELECT p.ProductName, COALESCE(n.TotalQuantityAvailable, 0), p.Station, p.IsConsumable, p.UnitOfMeasure
+    FROM Products p
+    LEFT JOIN AvailableNonConsumables n ON n.ProductName = p.ProductName
+    WHERE p.IsConsumable = 'n'
+    """)
+
 
     
     if test:

@@ -58,7 +58,12 @@ def humanize_error(e: Exception) -> tuple[str, str]:
     elif "Cannot open when there is an unfinished item" in msg:
         out["Short"]="Cannot open when there is an unfinished item."
 
+    elif "Attempt to use emergency supplies." in msg:
+        out["Short"]="Failed. Attempt to use emergency supplies. Notify management."
 
+    elif "LowSupplyCount >= EmergencyCount" in msg:
+        out["Short"]="LowSupplyCount must be greater than or equal to EmergencyCount"
+    
     return (out["Short"],out["Details"])
 
 def run_with_error_handling(master, func, *args, **kwargs):

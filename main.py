@@ -211,6 +211,13 @@ if __name__ == "__main__":
             db_path=db_path
         )
 
+        productsTotalSupplyRI = RelationInterface(
+            relation_name="ProductsTotalSupply",
+            default_search_text="",
+            simple_search_field="ProductName",
+            db_path=db_path
+        )
+
         reorder_ri = RelationInterface(
             relation_name="ReOrderList",
             default_search_text="",
@@ -243,6 +250,14 @@ if __name__ == "__main__":
             is_view=True,
             title="Non-consumables"
         )
+
+        productsTotalSupply = RelationWidget(
+            inner_frame,
+            productsTotalSupplyRI,
+            labels=["Analytics"],
+            is_view=True,
+            title="Consumables/Non-consumables"
+        )
         
         reorder = RelationWidget(
             inner_frame,
@@ -260,8 +275,6 @@ if __name__ == "__main__":
         top_header_frame = tk.Frame(inner_frame)
         top_header_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 0))
         top_header_frame.grid_columnconfigure(0, weight=1)  # Label expands to left
-
-       
 
         # Last Updated label (starts empty)
         last_updated_label = tk.Label(
@@ -295,9 +308,9 @@ if __name__ == "__main__":
             font=("Segoe UI", 14, "bold")
         )
 
-        available_header = tk.Label(
+        all_header = tk.Label(
             inner_frame,
-            text="Available",
+            text="All",
             font=("Segoe UI", 14, "bold")
         )
         
@@ -324,9 +337,8 @@ if __name__ == "__main__":
         reorder_header.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
         reorder.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 20))
 
-        available_header.grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
-        availableConsumables.grid(row=5, column=0, sticky="nsew", padx=10, pady=10)
-        availableNonConsumables.grid(row=5, column=1, sticky="nsew", padx=10, pady=10)
+        all_header.grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
+        productsTotalSupply.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
         
         inner_frame.grid_columnconfigure(0, weight=1)
         inner_frame.grid_columnconfigure(1, weight=1)
