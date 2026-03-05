@@ -166,7 +166,7 @@ if __name__ == "__main__":
 
     def analytics_content(notebook, root):
         # ------------------ Scrollable Canvas ------------------
-        canvas = tk.Canvas(root, bg="blue", highlightthickness=0)
+        canvas = tk.Canvas(root, bg="red", highlightthickness=0)
         v_scroll = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=v_scroll.set)
 
@@ -180,6 +180,10 @@ if __name__ == "__main__":
         # ------------------ Inner Frame ------------------
         inner_frame = tk.Frame(canvas)
         inner_window = canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+
+        def resize_inner_frame(event):
+            canvas.itemconfig(inner_window, width=event.width, height=event.height)
+        canvas.bind("<Configure>", resize_inner_frame)
 
         # Update scroll region when inner frame changes
         def on_frame_configure(event):
@@ -339,7 +343,7 @@ if __name__ == "__main__":
 
         all_header.grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
         productsTotalSupply.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
-        
+
         inner_frame.grid_columnconfigure(0, weight=1)
         inner_frame.grid_columnconfigure(1, weight=1)
 
@@ -394,6 +398,7 @@ if __name__ == "__main__":
 
 
     root = tk.Tk()
+    root.maxsize(width=1920, height=1080)
     style = ttk.Style()
 
     run_with_error_handling(root, nav, root)
