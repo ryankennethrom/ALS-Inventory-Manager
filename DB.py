@@ -37,7 +37,7 @@ def init_db(db_path, test=False):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ProductName TEXT NOT NULL,
             LOT TEXT NOT NULL,
-            CoaFilePath TEXT NOT NULL,
+            CoaFilePath TEXT NOT NULL CHECK (CoaFilePath != ''),
             Quantity INTEGER NOT NULL
                 CHECK (Quantity = 1),
 
@@ -86,7 +86,7 @@ def init_db(db_path, test=False):
                 CHECK (
                     (FinishedInitials == '' AND DateFinished == '') or (FinishedInitials != '' AND DateFinished != '')
                 ),
-            PONumber TEXT NOT NULL,
+            PONumber TEXT NOT NULL CHECK (PONumber != ''),
 
             -- Lifecycle state consistency
             CHECK (

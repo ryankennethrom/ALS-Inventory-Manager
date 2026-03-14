@@ -1,9 +1,14 @@
 from tkcalendar import DateEntry, Calendar
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
 import pyautogui
 from rapidfuzz import fuzz, process
 import DB
+import subprocess
+import os
+
+def open_file(path):
+    subprocess.Popen(["start", "", path], shell=True)
 
 def attach_datepicker(entry):
     
@@ -324,6 +329,127 @@ def attach_fuzzy_list(entry, data):
         entry.bind("<KeyRelease>", update_list)
     return entry.bind("<FocusIn>", show_dropdown)
 
+def attach_filepath_manager(entry):
+    dropdown = None
+
+    def show_dropdown(event=None):
+        nonlocal dropdown
+        # Prevent multiple popups
+        if dropdown and dropdown.winfo_exists():
+            return
+
+        parent = entry.winfo_toplevel()
+
+        dropdown = tk.Toplevel(parent)
+        dropdown.overrideredirect(True)
+        dropdown.lift()
+
+        # Position under entry
+        def reposition_dropdown(event=None):
+            if dropdown and dropdown.winfo_exists():
+                x = entry.winfo_rootx()
+                y = entry.winfo_rooty() + entry.winfo_height()
+                dropdown.geometry(f"+{x}+{y}")
+
+        reposition_dropdown()
+        parent.bind("<Configure>", reposition_dropdown)
+
+        # ---------------- ADDED: frame + scrollbar ----------------
+        frame = tk.Frame(dropdown)
+        frame.pack(fill="both", expand=True)
+
+        scrollbar = tk.Scrollbar(frame)
+        scrollbar.pack(side="right", fill="y")
+
+
+        listbox = tk.Listbox(
+            frame,
+            height=8,  # LIMIT VISIBLE ROWS
+            yscrollcommand=scrollbar.set
+        )
+        listbox.pack(side="left", fill="both", expand=True)
+
+        scrollbar.config(command=listbox.yview)
+        # ----------------------------------------------------------
+        MAX_VISIBLE = 2
+        MIN_VISIBLE = 2
+        def update_list(event=None):
+            if not dropdown or not dropdown.winfo_exists():
+                return
+            dropdown.lift()
+            listbox.delete(0, tk.END)
+
+            items = ["Select a file", "Open this file"]
+            for item in items:
+                listbox.insert(tk.END, item)
+
+            visible_rows = max(MIN_VISIBLE, min(len(items), MAX_VISIBLE))
+            listbox.config(height=visible_rows)
+
+        update_list()
+
+        # Handle selection
+        def on_button_down(event=None):
+            if listbox.curselection():
+                value = listbox.get(listbox.curselection()[0])
+                if value == "Select a file":
+                    file_path = filedialog.askopenfilename(
+                        title="Select a file"
+                    )
+                    entry.delete(0, tk.END)
+                    entry.insert(0, file_path)
+                elif value == "Open this file":
+                    open_file(str(entry.get()))
+                else:
+                    raise Exception("File Path entry helper doesn't recognize a user's input")
+                entry.focus_set()
+                pyautogui.press("enter")
+                dropdown.destroy()
+
+        def close_if_out_of_focus(e):
+            try:
+                x = int(event.x_root)
+                y = int(event.y_root)
+
+                popup = dropdown
+                px = int(popup.winfo_rootx())
+                py = int(popup.winfo_rooty())
+                pw = int(popup.winfo_width())
+                ph = int(popup.winfo_height())
+
+            except Exception:
+                dropdown.destroy()
+                return
+
+            if px <= x <= px + pw and py <= y <= py + ph:
+                return
+            else:
+                dropdown.destroy()
+ 
+        def focus_listbox(e):
+            if dropdown.focus_get() != listbox:
+                listbox.focus_set()
+                listbox.selection_clear(0, tk.END)
+                listbox.activate(0)
+                listbox.selection_set(0)
+                listbox.see(0)
+
+        def unfocus_listbox(e):
+            entry.focus_set()
+            return "break"
+
+        parent.bind("<Button-1>", close_if_out_of_focus)
+        parent.bind("<Down>", focus_listbox)
+        listbox.bind("<Up>", unfocus_listbox)
+        listbox.bind("<Button-1>", on_button_down)
+        listbox.bind("<Return>", on_button_down)
+        parent.bind("<Tab>", lambda e: dropdown.destroy())
+        parent.bind("<Unmap>", lambda e: dropdown.destroy())
+        entry.bind("<Return>", lambda e: dropdown.destroy(), add='+')
+    return entry.bind("<FocusIn>", show_dropdown)
+
+
+
 def attach_helper(root, entry_name, entry, db_path, relation_name, all_columns, all_column_types):
     col = entry_name
     if all_column_types[col] == "date":
@@ -336,3 +462,5 @@ def attach_helper(root, entry_name, entry, db_path, relation_name, all_columns, 
         attach_fuzzy_list(entry, ["y", "n"])
     elif col == "ActionType":
         attach_fuzzy_list(entry, ["Received", "Opened"])
+    elif col == "CoaFilePath":
+        attach_filepath_manager(entry)

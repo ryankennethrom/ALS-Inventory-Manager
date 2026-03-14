@@ -182,7 +182,7 @@ if __name__ == "__main__":
     id_df['AlsItemNumber'] = id_df['AlsItemNumber'].replace({0:""})
     id_df['VendorNumber'] = ""
     id_df['VendorItemNumber'] = id_df['VendorItemNumber'].fillna("")
-    id_df['PONumber'] = id_df['PONumber'].fillna("")
+    id_df['PONumber'] = id_df['PONumber'].fillna("Not Set")
     id_df['DateReceived'] = id_df['DateReceived'].dt.strftime('%Y-%m-%d')
     id_df['ExpiryDate'] = id_df['ExpiryDate'].dt.strftime('%Y-%m-%d')
     id_df['DateOpened'] = id_df['DateOpened'].dt.strftime('%Y-%m-%d')
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     id_df['DateFinished'] = id_df['DateFinished'].fillna("")
     id_df['OpenedInitials'] = id_df['OpenedInitials'].fillna("")
     id_df['FinishedInitials'] = id_df['FinishedInitials'].fillna("")
-    id_df['CoaFilePath'] = ""
+    id_df['CoaFilePath'] = "Not Set"
 
     with pd.option_context('display.max_columns', None):
         print(id_df.head(5))
