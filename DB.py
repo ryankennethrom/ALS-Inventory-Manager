@@ -37,6 +37,7 @@ def init_db(db_path, test=False):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ProductName TEXT NOT NULL,
             LOT TEXT NOT NULL,
+            CoaFilePath TEXT NOT NULL,
             Quantity INTEGER NOT NULL
                 CHECK (Quantity = 1),
 

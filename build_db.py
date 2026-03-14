@@ -191,7 +191,8 @@ if __name__ == "__main__":
     id_df['DateFinished'] = id_df['DateFinished'].fillna("")
     id_df['OpenedInitials'] = id_df['OpenedInitials'].fillna("")
     id_df['FinishedInitials'] = id_df['FinishedInitials'].fillna("")
-    
+    id_df['CoaFilePath'] = ""
+
     with pd.option_context('display.max_columns', None):
         print(id_df.head(5))
         print(id_df.tail(5))
