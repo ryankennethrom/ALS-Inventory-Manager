@@ -193,7 +193,7 @@ class RelationInterface:
     def get_sql(self):
         query = f"SELECT * FROM {self.relation_name} "
         where_clause, params = self.get_where_clauses_and_params()
-        return (f"{query} {where_clause} {f"ORDER BY {self.order_by} DESC" if self.order_by is not None else ""}", params)
+        return (f"{query} {where_clause} {f"ORDER BY {self.order_by}" if self.order_by is not None else ""}", params)
 
     def on_search_clicked(self) -> List[Dict[str, Any]]:
         self.before_search_clicked()

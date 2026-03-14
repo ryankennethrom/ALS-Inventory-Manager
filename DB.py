@@ -36,7 +36,14 @@ def init_db(db_path, test=False):
         CREATE TABLE IF NOT EXISTS ConsumableLogs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ProductName TEXT NOT NULL,
-            LOT TEXT NOT NULL,
+            CertifiedValue TEXT NOT NULL,
+            CertificationDate TEXT NOT NULL
+                CHECK (
+                    (CertificationDate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND CertificationDate = date(CertificationDate))
+                    OR CertificationDate = ''
+                ),
+            LOT TEXT NOT NULL CHECK (LOT != ''),
             CoaFilePath TEXT NOT NULL CHECK (CoaFilePath != ''),
             Quantity INTEGER NOT NULL
                 CHECK (Quantity = 1),
@@ -87,6 +94,7 @@ def init_db(db_path, test=False):
                     (FinishedInitials == '' AND DateFinished == '') or (FinishedInitials != '' AND DateFinished != '')
                 ),
             PONumber TEXT NOT NULL CHECK (PONumber != ''),
+            Comments TEXT DEFAULT '',
 
             -- Lifecycle state consistency
             CHECK (
@@ -283,6 +291,13 @@ def init_db(db_path, test=False):
     ) = 0;
     """)
     
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS ConsumablesReport AS
+    SELECT c.ProductName, p.Station, c.id AS "Order", c.LOT AS "Lot Number", c.CertifiedValue AS "Certified Value", c.CertificationDate AS "Certification Date", c.DateReceived AS "Date Received", c.ReceivedInitials AS "Received by", c.DateOpened AS "Date Opened", c.OpenedInitials AS "Opened by", c.ExpiryDate AS "Expiry Date", c.DateFinished AS "Date Depleted", c.FinishedInitials AS "Disposed by", c.Comments
+    FROM ConsumableLogs c
+    LEFT JOIN Products p ON c.ProductName = p.ProductName;
+    """)
+
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS AvailableConsumables AS
     SELECT l.*, p.Station

@@ -217,10 +217,8 @@ def attach_fuzzy_list(entry, data):
 
         # ---------------- ADDED: frame + scrollbar ----------------
         frame = tk.Frame(dropdown)
-        frame.pack(fill="both", expand=True)
 
         scrollbar = tk.Scrollbar(frame)
-        scrollbar.pack(side="right", fill="y")
         
 
         listbox = tk.Listbox(
@@ -228,7 +226,6 @@ def attach_fuzzy_list(entry, data):
             height=8,  # LIMIT VISIBLE ROWS
             yscrollcommand=scrollbar.set
         )
-        listbox.pack(side="left", fill="both", expand=True)
 
         scrollbar.config(command=listbox.yview)
         # ----------------------------------------------------------
@@ -251,6 +248,10 @@ def attach_fuzzy_list(entry, data):
             listbox.config(height=visible_rows)
 
         update_list()
+        frame.pack(fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        listbox.pack(side="left", fill="both", expand=True)
+        
 
         # Handle selection
         def on_button_down(event=None):
@@ -356,10 +357,8 @@ def attach_filepath_manager(entry):
 
         # ---------------- ADDED: frame + scrollbar ----------------
         frame = tk.Frame(dropdown)
-        frame.pack(fill="both", expand=True)
 
         scrollbar = tk.Scrollbar(frame)
-        scrollbar.pack(side="right", fill="y")
 
 
         listbox = tk.Listbox(
@@ -367,7 +366,6 @@ def attach_filepath_manager(entry):
             height=8,  # LIMIT VISIBLE ROWS
             yscrollcommand=scrollbar.set
         )
-        listbox.pack(side="left", fill="both", expand=True)
 
         scrollbar.config(command=listbox.yview)
         # ----------------------------------------------------------
@@ -387,7 +385,10 @@ def attach_filepath_manager(entry):
             listbox.config(height=visible_rows)
 
         update_list()
-
+        frame.pack(fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        listbox.pack(side="left", fill="both", expand=True)
+        
         # Handle selection
         def on_button_down(event=None):
             if listbox.curselection():

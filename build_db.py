@@ -178,9 +178,9 @@ if __name__ == "__main__":
     id_df["FinishedInitials"] = ini.values
 
     id_df['AlsItemNumber'] = id_df['AlsItemNumber'].fillna(0)
-    id_df['AlsItemNumber'] = id_df['AlsItemNumber'].astype(int)
-    id_df['AlsItemNumber'] = id_df['AlsItemNumber'].replace({0:""})
     id_df['VendorNumber'] = ""
+    id_df['CertifiedValue'] = ""
+    id_df['CertificationDate'] = ""
     id_df['VendorItemNumber'] = id_df['VendorItemNumber'].fillna("")
     id_df['PONumber'] = id_df['PONumber'].fillna("Not Set")
     id_df['DateReceived'] = id_df['DateReceived'].dt.strftime('%Y-%m-%d')
@@ -207,7 +207,9 @@ if __name__ == "__main__":
 
     merged["IsConsumable"] = 'n'
     merged.loc[merged["ProductName"].isin(id_df["ProductName"]), 'IsConsumable'] = 'y'
-
+    id_df['AlsItemNumber'] = id_df['AlsItemNumber'].astype("int64")
+    id_df['AlsItemNumber'] = id_df['AlsItemNumber'].replace({0:""})
+    
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
         merged.to_sql('Products', conn, if_exists='append', index=False)
@@ -226,8 +228,11 @@ if __name__ == "__main__":
         # Keep only DataFrame columns that exist in the table
         df_to_insert = id_df[[col for col in id_df.columns if col in existing_columns]]
 
-        # Insert each row
+        to_insert = []
         for _, row in df_to_insert.iterrows():
+            to_insert.insert(0, row)
+        # Insert each row
+        for row in to_insert:
             columns_str = ", ".join(df_to_insert.columns)
             placeholders = ", ".join(["?"] * len(df_to_insert.columns))
             data_tuple = tuple(row)

@@ -15,6 +15,7 @@ import copy
 from tkinter import filedialog, messagebox
 import uuid
 import registry
+from datetime import date
 
 def generate_random_name(length=6):
     letters = string.ascii_uppercase
@@ -56,13 +57,14 @@ class RelationWidget(ttk.LabelFrame):
         def resize_columns(tree, results):
             f = tkfont.Font()
             max_width = dict()
+            padding=5
 
             for col in self.all_columns:
-                max_width[col] = f.measure(col)  # small padding
+                max_width[col] = f.measure(col+" "*padding)  # small padding
 
             for item in results:
                 for col, val in item.items():
-                    width = f.measure(str(val))  # small padding
+                    width = f.measure(str(val)+" "*padding)  # small padding
                     if width > max_width[col]:
                         max_width[col] = width
 
@@ -138,7 +140,7 @@ class RelationWidget(ttk.LabelFrame):
         self.tree_scroll_x.grid(row=1, column=0, sticky="ew")
 
         style = ttk.Style()
-        style.configure("Treeview", rowheight=25)
+        style.configure("Treeview", rowheight=28, padding=(10,10))
         self.tree = ttk.Treeview(
             self.tree_frame,
             columns = self.show_columns,
@@ -685,6 +687,13 @@ class RelationWidget(ttk.LabelFrame):
             attach_helper(self.master, col, entry, self.relation.db_path, self.relation.relation_name, self.all_columns, self.all_column_types)
             entry.grid(row=i, column=1, pady=2, padx=5)
             entries[col] = entry
+            if col == "DateReceived" or col == "Date":
+                # Get today's date
+                today = date.today().strftime("%Y-%m-%d")
+
+                # Insert into the Entry
+                entry.delete(0, tk.END)
+                entry.insert(0, today)
 
         def save_item(event=None):
             details = {col: entries[col].get() for col in self.create_item_columns}

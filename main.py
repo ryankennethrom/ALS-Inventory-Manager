@@ -11,6 +11,7 @@ import ctypes
 import registry
 import datetime
 import argparse
+from app_version import version
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
@@ -21,7 +22,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    VERSION = 2
+    VERSION = version
     TEST_MODE = args.test
     PROD_MODE = not TEST_MODE
 
@@ -61,7 +62,7 @@ if __name__ == "__main__":
         non_consumables = RelationInterface(
             relation_name="NonConsumableLogs",
             default_search_text="",
-            order_by="Date",
+            order_by="Date DESC, id DESC",
             simple_search_field="ProductName",
             db_path=db_path
         )
@@ -94,7 +95,7 @@ if __name__ == "__main__":
             relation_name="ConsumableLogs",
             default_search_text="",
             simple_search_field="ProductName",
-            order_by="DateReceived",
+            order_by="DateReceived DESC, id DESC",
             db_path=db_path
         )
         consumables.on_create_item_clicked_original = consumables.on_create_item_clicked
@@ -199,22 +200,7 @@ if __name__ == "__main__":
             simple_search_field="ProductName",
             db_path=db_path
         )
-
-        availableConsumablesRI = RelationInterface(
-            relation_name="AvailableConsumables",
-            default_search_text="",
-            order_by="DateReceived",
-            simple_search_field="ProductName",
-            db_path=db_path
-        )
-
-        availableNonConsumablesRI = RelationInterface(
-            relation_name="AvailableNonConsumables",
-            default_search_text="",
-            simple_search_field="ProductName",
-            db_path=db_path
-        )
-
+        
         productsTotalSupplyRI = RelationInterface(
             relation_name="ProductsTotalSupply",
             default_search_text="",
@@ -229,36 +215,31 @@ if __name__ == "__main__":
             db_path=db_path
         )
 
-        # ------------------ Add RelationWidgets in 2x2 grid ------------------
+        consumablesReportRI = RelationInterface(
+            relation_name="ConsumablesReport",
+            default_search_text="",
+            order_by='"Date Received" DESC, "Order" DESC',
+            simple_search_field="ProductName",
+            db_path=db_path
+        )
+        
+        # ------------------ Add RelationWidgets ------------------
+        width = root.winfo_screenwidth()
+        height = root.winfo_screenheight()
         dangerouslyLow = RelationWidget(
             inner_frame,
             dangerouslyLowRI,
             labels=["Analytics"],
+            min_height=int(height*0.3),
             is_view=True,
             title="Consumables/Non-consumables"
-        )
-
-        availableConsumables = RelationWidget(
-            inner_frame,
-            availableConsumablesRI,
-            labels=["Analytics"],
-            is_view=True,
-            title="Consumables"
-        )
-
-        availableNonConsumables = RelationWidget(
-            inner_frame,
-            availableNonConsumablesRI,
-            labels=["Analytics"],
-            exclude_fields_on_show=["TotalQuantityReceived", "TotalQuantityOpened"],
-            is_view=True,
-            title="Non-consumables"
         )
 
         productsTotalSupply = RelationWidget(
             inner_frame,
             productsTotalSupplyRI,
             labels=["Analytics"],
+            min_height=int(height*0.3),
             is_view=True,
             title="Consumables/Non-consumables"
         )
@@ -267,9 +248,20 @@ if __name__ == "__main__":
             inner_frame,
             reorder_ri,
             labels=["Analytics"],
+            min_height=int(height*0.3),
             exclude_fields_on_show=[],
             is_view=True,
             title="Consumables/Non-consumables"
+        )
+
+        consumablesReport = RelationWidget(
+            inner_frame,
+            consumablesReportRI,
+            labels=["Analytics"],
+            min_height=int(height*0.3),
+            exclude_fields_on_show=[],
+            is_view=True,
+            title="Consumables"
         )
 
         # -------- Widgets -----------
@@ -316,6 +308,12 @@ if __name__ == "__main__":
             inner_frame,
             text="All",
             font=("Segoe UI", 14, "bold")
+        ) 
+
+        consumables_report_header = tk.Label(
+            inner_frame,
+            text="Consumables Report",
+            font=("Segoe UI", 14, "bold")
         )
         
         reorder_ri.on_search_clicked_original = reorder_ri.on_search_clicked
@@ -344,10 +342,13 @@ if __name__ == "__main__":
         all_header.grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
         productsTotalSupply.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
 
+        consumables_report_header.grid(row=6, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
+        consumablesReport.grid(row=7, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
+        
         inner_frame.grid_columnconfigure(0, weight=1)
         inner_frame.grid_columnconfigure(1, weight=1)
 
-        for i in range(6):
+        for i in range(7):
             inner_frame.grid_rowconfigure(i, weight=1)
         
         def _on_mousewheel(event):
@@ -383,10 +384,10 @@ if __name__ == "__main__":
         product_manager_tab = ttk.Frame(notebook)
         
         # Add tabs to notebook
-        notebook.add(analytics_tab, text="Analytics")
+        notebook.add(analytics_tab, text="Analytics & Reporting")
         notebook.add(cons_log_tab, text="Consumable Logs")
         notebook.add(non_cons_log_tab, text="Non-consumable Logs")
-        notebook.add(product_manager_tab, text="Product Manager")
+        notebook.add(product_manager_tab, text="Products")
 
         # Initial load
         cons_log_content(notebook, cons_log_tab)
@@ -398,7 +399,7 @@ if __name__ == "__main__":
 
 
     root = tk.Tk()
-    root.maxsize(width=1920, height=1080)
+    # root.maxsize(width=1920, height=1080)
     style = ttk.Style()
 
     run_with_error_handling(root, nav, root)
