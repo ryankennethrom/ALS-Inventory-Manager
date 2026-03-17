@@ -363,7 +363,19 @@ if __name__ == "__main__":
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
         canvas.bind("<Configure>", resize_inner_frame)
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        
+    
+    def quicklogs_content(notebook, root):
+        # -------------------- Main Window --------------------
+        root.grid_rowconfigure(0, weight=1)
+        root.grid_columnconfigure(0, weight=1)
+
+        # ---------- RelationInterface instances ----------
+   
+        def on_tab_changed(event):
+            registry.destroy_all_popups()
+        notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
+
+
         
     def nav(root):
 
@@ -382,9 +394,11 @@ if __name__ == "__main__":
         cons_log_tab = ttk.Frame(notebook)
         non_cons_log_tab = ttk.Frame(notebook)
         product_manager_tab = ttk.Frame(notebook)
-        
+        quicklogs_tab = ttk.Frame(notebook)
+
         # Add tabs to notebook
         notebook.add(analytics_tab, text="Analytics & Reporting")
+        notebook.add(quicklogs_tab, text="Quick Logs")
         notebook.add(cons_log_tab, text="Consumable Logs")
         notebook.add(non_cons_log_tab, text="Non-consumable Logs")
         notebook.add(product_manager_tab, text="Products")
@@ -394,7 +408,8 @@ if __name__ == "__main__":
         non_cons_log_content(notebook, non_cons_log_tab)
         analytics_content(notebook, analytics_tab)
         product_manager_content(notebook, product_manager_tab)
-        
+        quicklogs_content(notebook, quicklogs_tab)
+
         registry.refresh_all(exceptions=["Early"])
 
 

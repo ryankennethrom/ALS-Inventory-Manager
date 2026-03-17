@@ -17,6 +17,46 @@ import uuid
 import registry
 from datetime import date
 
+def generate_code(length=5):
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choice(chars) for _ in range(length))
+
+def confirm_delete(parent, on_delete):
+    code = generate_code()
+    
+    popup = tk.Toplevel(parent)
+    popup.title("Confirm Delete")
+    popup.grab_set()  # make it modal
+
+    tk.Label(popup, text=f"Type this code to confirm deletion:\n\n{code}").pack(pady=10, padx=10)
+
+    entry = tk.Entry(popup)
+    entry.pack(pady=10, padx=10)
+    entry.focus()
+
+    def check_code():
+        if entry.get() == code:
+            popup.destroy()
+            on_delete()
+        else:
+            messagebox.showerror("Error", "Incorrect code. Try again.")
+
+    tk.Button(popup, text="Confirm", command=check_code).pack(pady=10)
+
+    popup.update_idletasks()
+    popup_width = popup.winfo_reqwidth()
+    popup_height = popup.winfo_reqheight()
+
+    parent_x = parent.winfo_rootx()
+    parent_y = parent.winfo_rooty()
+    parent_width = parent.winfo_width()
+    parent_height = parent.winfo_height()
+
+    x = parent_x + (parent_width // 2) - (popup_width // 2)
+    y = parent_y + (parent_height // 2) - (popup_height // 2)
+
+    popup.geometry(f"+{x}+{y}")
+
 def generate_random_name(length=6):
     letters = string.ascii_uppercase
     digits = string.digits
@@ -620,15 +660,8 @@ class RelationWidget(ttk.LabelFrame):
 
             index = self.tree.index(selected[0])
 
-            # Ask user for confirmation
-            confirm = messagebox.askyesno(
-                "Confirm Delete",
-                "Are you sure you want to delete this item?",
-                parent=self.popup
-            )
 
-            if confirm:
-                # Only run deletion if user clicked 'Yes'
+            def on_delete():
                 result = run_with_error_handling(
                     self.master,
                     self.relation.on_item_delete_clicked,
@@ -638,7 +671,15 @@ class RelationWidget(ttk.LabelFrame):
                 if result["status"] == "Ok":
                     self.update_table()
                     self.popup.destroy()
-        
+
+            confirm_delete(self.popup, on_delete)
+            # Ask user for confirmation
+            # confirm = messagebox.askyesno(
+            #    "Confirm Delete",
+            #    "Are you sure you want to delete this item?",
+            #    parent=self.popup
+            # )
+                        
         # Create an inner frame to hold both buttons
         btn_frame = ttk.Frame(frame)
         btn_frame.grid(row=len(data)+1, column=0, columnspan=2, pady=20)  # span two columns
@@ -727,14 +768,7 @@ class RelationWidget(ttk.LabelFrame):
         self.hold_popup(self.popup)
 
     def delete(self):
-        # Ask user for confirmation
-        confirm = messagebox.askyesno(
-            "Confirm Delete",
-            "Are you sure you want to delete the selected items?",
-            parent=self
-        )
-
-        if confirm:
+        def on_delete():
             selected = self.tree.selection()
             if not selected:
                 return
@@ -747,4 +781,6 @@ class RelationWidget(ttk.LabelFrame):
             for index in indexes:
                 run_with_error_handling(self.master, self.relation.on_item_delete_clicked, index)
             self.update_table()
+
+        confirm_delete(self, on_delete)
 
