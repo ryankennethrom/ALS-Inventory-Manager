@@ -15,6 +15,69 @@ from app_version import version
 import tkinter.font as tkfont
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
+def create_consumables_table(parent):
+        consumables = RelationInterface(
+            relation_name="ConsumableLogs",
+            default_search_text="",
+            simple_search_field="ProductName",
+            order_by="DateReceived DESC, id DESC",
+            db_path=db_path
+        )
+        consumables.on_create_item_clicked_original = consumables.on_create_item_clicked
+
+        def create_item_quantity_times(obj, details: dict):
+            """Insert a new row into the database. Returns (status, user_message, error_details)."""
+            input_quantity = int(details["Quantity"])
+            if input_quantity <= 0:
+                raise Exception("Quantity must be > 0")
+
+            details["Quantity"] = "1"
+            columns = ", ".join(details.keys())
+            placeholders = ", ".join(["?"] * len(details))
+            params = list(details.values())
+
+            for i in range(input_quantity):
+                obj.on_create_item_clicked_original(details)
+            obj.curr_results = obj.on_search_clicked()
+
+        consumables.on_create_item_clicked = types.MethodType(create_item_quantity_times, consumables)
+
+        # ---------- InventoryTable widgets ----------
+        cons_widg = RelationWidget(
+            parent,
+            consumables,
+            exclude_fields_on_update=["CreatedDateTime"],
+            exclude_fields_on_create=["id", "CreatedDateTime"],
+            title="Consumable Logs",
+            labels=["Logs"]
+        )
+
+        return cons_widg, consumables
+
+def create_non_consumables_table(parent):
+        non_consumables = RelationInterface(
+            relation_name="NonConsumableLogs",
+            default_search_text="",
+            order_by="Date DESC, id DESC",
+            simple_search_field="ProductName",
+            db_path=db_path
+        )
+
+        # ---------- InventoryTable widgets ----------
+
+
+        non_cons_widg = RelationWidget(
+            parent,
+            non_consumables,
+            exclude_fields_on_update=["CreatedDateTime"],
+            exclude_fields_on_create=["id", "CreatedDateTime"],
+            title="Non-consumable Logs",
+            labels=["Logs"]
+        )
+
+        return non_cons_widg, non_consumables
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
     parser.add_argument(
@@ -378,7 +441,7 @@ if __name__ == "__main__":
 
         main_frame = ttk.Frame(root, padding=10)
         main_frame.grid_columnconfigure(0, weight=1)
-        main_frame.grid_columnconfigure(1, weight=1)
+        main_frame.grid_columnconfigure(1, weight=9)
         main_frame.grid_rowconfigure(0,weight=1)
         
         main_frame.grid(row=0, column=0, sticky="nsew")
@@ -388,12 +451,13 @@ if __name__ == "__main__":
         
         # ---------- Input Frame ----------
         left_frame = ttk.Frame(main_frame)
+        left_frame.grid_columnconfigure(0, weight=1)
         left_frame.grid_rowconfigure(2, weight=1)
         left_frame.grid(row=0, column=0, sticky="nsew")
 
 
         input_frame = ttk.Frame(left_frame)
-        input_frame.grid(row=0, column=0, pady=(0, 10), sticky="nw")
+        input_frame.grid(row=0, column=0, pady=(0, 10), sticky="new")
 
         input_frame.grid_columnconfigure(1, weight=1)
 
@@ -402,21 +466,14 @@ if __name__ == "__main__":
             .grid(row=0, column=0, padx=5, pady=5, sticky="w")
 
         barcode_entry = ttk.Entry(input_frame)
-        barcode_entry.grid(row=0, column=1, padx=5, pady=5)
+        barcode_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
         # Product Name
         ttk.Label(input_frame, text="Product Name:", font=label_font)\
             .grid(row=1, column=0, padx=5, pady=5, sticky="w")
 
         product_entry = ttk.Entry(input_frame)
-        product_entry.grid(row=1, column=1, padx=5, pady=5)
-
-        # Initials
-        ttk.Label(input_frame, text="Initials:", font=label_font)\
-            .grid(row=2, column=0, padx=5, pady=5, sticky="w")
-
-        initials_entry = ttk.Entry(input_frame)
-        initials_entry.grid(row=2, column=1, padx=5, pady=5)
+        product_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
         # ---------- Result Frame (vertical buttons) ----------
         action_frame = ttk.Frame(left_frame, style="ActionFrame.TFrame", padding=10)
@@ -443,7 +500,41 @@ if __name__ == "__main__":
             btn = ttk.Button(action_frame, style="ActionButton.TButton", text=label, command=lambda c=cmd: c(barcode_entry, product_entry), padding=10)
             btn.pack(anchor="w", pady=3, fill="x")
             button_widgets.append(btn)
+
+        consumables_widget, consumables_ri = create_consumables_table(main_frame)
         
+        consumables_widget.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
+        non_cons_result_frame = ttk.Frame(main_frame, padding=10)
+        non_cons_result_frame.grid_columnconfigure(0, weight=5)
+        non_cons_result_frame.grid_columnconfigure(1, weight=5)
+        non_cons_result_frame.grid_rowconfigure(0, weight=1)
+
+        non_consumables_widget, non_cons_ri = create_non_consumables_table(non_cons_result_frame)
+
+        non_consumables_widget.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+        productsTotalSupplyRI = RelationInterface(
+            relation_name="ProductsTotalSupply",
+            default_search_text="",
+            simple_search_field="ProductName",
+            db_path=db_path
+        )
+
+        productsTotalSupply = RelationWidget(
+            non_cons_result_frame,
+            productsTotalSupplyRI,
+            labels=["Analytics"],
+            is_view=True,
+            title="Total Quantity Available"
+        )
+
+        productsTotalSupply.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
+        non_cons_result_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
+        # non_cons_result_frame.grid_remove()
+
         # Focus barcode for fast scanning
         barcode_entry.focus()
 
@@ -466,76 +557,6 @@ if __name__ == "__main__":
         root.grid_columnconfigure(2, weight=1)
         
        
-        # ---->
-        label_font = tkfont.Font(size=8, weight="bold")
-        
-        left_frame = ttk.Frame(root, width=200)
-        left_frame.grid_rowconfigure(2, weight=1)
-        left_frame.grid(row=1, column=0, sticky="nsew")
-
-
-        input_frame = ttk.Frame(left_frame)
-        input_frame.grid(row=0, column=0, pady=(0, 10), sticky="nw")
-
-        input_frame.grid_columnconfigure(1, weight=1)
-
-        # Barcode
-        ttk.Label(input_frame, text="Barcode:", font=label_font)\
-            .grid(row=0, column=0, padx=5, pady=5, sticky="w")
-
-        barcode_entry = ttk.Entry(input_frame)
-        barcode_entry.grid(row=0, column=1, padx=5, pady=5)
-
-        # Product Name
-        ttk.Label(input_frame, text="Product Name:", font=label_font)\
-            .grid(row=1, column=0, padx=5, pady=5, sticky="w")
-
-        product_entry = ttk.Entry(input_frame)
-        product_entry.grid(row=1, column=1, padx=5, pady=5)
-
-        # Initials
-        ttk.Label(input_frame, text="Initials:", font=label_font)\
-            .grid(row=2, column=0, padx=5, pady=5, sticky="w")
-
-        initials_entry = ttk.Entry(input_frame)
-        initials_entry.grid(row=2, column=1, padx=5, pady=5)
-
-        # ---------- Result Frame (vertical buttons) ----------
-        action_frame = ttk.Frame(left_frame, style="ActionFrame.TFrame", padding=10)
-        action_frame.grid(row=2, column=0, sticky="nsew")
-
-        # Add buttons dynamically
-        button_widgets = []
-        def open_action(be, pe):
-            print("Open:", be.get(), pe.get())
-
-        def receive_action(be, pe):
-            print("Receive:", be.get(), pe.get())
-
-        def finish_action(be, pe):
-            print("Finish:", be.get(), pe.get())
-
-        result_buttons = [
-            ("Open", open_action),
-            ("Receive", receive_action),
-            ("Finish and Open", finish_action)
-        ]
-
-        for label, cmd in result_buttons:
-            btn = ttk.Button(action_frame, style="ActionButton.TButton", text=label, command=lambda c=cmd: c(barcode_entry, product_entry), padding=10)
-            btn.pack(anchor="w", pady=3, fill="x")
-            button_widgets.append(btn)
-        
-        # Focus barcode for fast scanning
-        barcode_entry.focus()
-        
-        # ---------- Vertical Button ---------------
-        text = "Q\nU\nI\nC\nK\n\nL\nO\nG\nS"
-
-        button = tk.Button(root, text=text, command=lambda: left_frame.grid_remove())
-        button.grid(row=1, column=1, sticky="ns")
-        # <--
-
         # Create frames (each tab needs a frame)
         analytics_tab = ttk.Frame(notebook)
         cons_log_tab = ttk.Frame(notebook)

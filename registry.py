@@ -2,13 +2,18 @@ import types
 
 relation_widgets = dict()
 refresh_callbacks = dict()
+next_id = 0
 
 def register(widget, parents):
+    global next_id
+
     for parent in parents:
         if parent not in relation_widgets:
             relation_widgets[parent] = [widget]
         else:
             relation_widgets[parent].append(widget)
+        widget.id = next_id
+        next_id += 1
 
 def _hash(parents):
     return str(sorted(parents))
@@ -20,7 +25,7 @@ def refresh(parents):
     finished = set()
     for parent in parents:
         for relation_widget in relation_widgets[parent]:
-            if relation_widget.relation.relation_name in finished:
+            if relation_widget.id in finished:
                 continue
             relation_widget.refresh()
             finished.add(relation_widget.relation.relation_name)
