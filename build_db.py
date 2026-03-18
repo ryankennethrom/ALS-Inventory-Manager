@@ -140,6 +140,7 @@ if __name__ == "__main__":
 
     merged["Price"] = merged["Price I"].fillna(merged["Price PM"])
     merged["ProductName"] = merged["ProductName_x"].fillna(merged["ProductName_y"])
+    merged["Barcode"] = ""
     merged["AlsItemNumber"] = merged["AlsItemNumber_x"].fillna(merged["AlsItemNumber_y"])
     merged["VendorItemNumber"] = merged["VendorItemNumber_x"].fillna(merged["VendorItemNumber_y"])
     

@@ -17,6 +17,7 @@ def init_db(db_path, test=False):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Products (
         ProductName TEXT PRIMARY KEY,
+        Barcode TEXT NOT NULL,
         UnitOfMeasure TEXT NOT NULL,
         ItemDescription TEXT NOT NULL,
         Station TEXT NOT NULL,

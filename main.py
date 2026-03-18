@@ -12,6 +12,8 @@ import registry
 import datetime
 import argparse
 from app_version import version
+import tkinter.font as tkfont
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
@@ -363,20 +365,94 @@ if __name__ == "__main__":
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
         canvas.bind("<Configure>", resize_inner_frame)
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
-    
+
     def quicklogs_content(notebook, root):
         # -------------------- Main Window --------------------
         root.grid_rowconfigure(0, weight=1)
         root.grid_columnconfigure(0, weight=1)
 
-        # ---------- RelationInterface instances ----------
-   
+        style = ttk.Style()
+        style.configure("ActionFrame.TFrame", background="lightgrey")
+        style.configure("ActionButton.TButton", background="lightgrey")
+        style.configure("LeftFrame.TFrame", background="darkgrey")
+
+        main_frame = ttk.Frame(root, padding=10)
+        main_frame.grid_columnconfigure(0, weight=1)
+        main_frame.grid_columnconfigure(1, weight=1)
+        main_frame.grid_rowconfigure(0,weight=1)
+        
+        main_frame.grid(row=0, column=0, sticky="nsew")
+
+
+        label_font = tkfont.Font(size=8, weight="bold")
+        
+        # ---------- Input Frame ----------
+        left_frame = ttk.Frame(main_frame)
+        left_frame.grid_rowconfigure(2, weight=1)
+        left_frame.grid(row=0, column=0, sticky="nsew")
+
+
+        input_frame = ttk.Frame(left_frame)
+        input_frame.grid(row=0, column=0, pady=(0, 10), sticky="nw")
+
+        input_frame.grid_columnconfigure(1, weight=1)
+
+        # Barcode
+        ttk.Label(input_frame, text="Barcode:", font=label_font)\
+            .grid(row=0, column=0, padx=5, pady=5, sticky="w")
+
+        barcode_entry = ttk.Entry(input_frame)
+        barcode_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        # Product Name
+        ttk.Label(input_frame, text="Product Name:", font=label_font)\
+            .grid(row=1, column=0, padx=5, pady=5, sticky="w")
+
+        product_entry = ttk.Entry(input_frame)
+        product_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        # Initials
+        ttk.Label(input_frame, text="Initials:", font=label_font)\
+            .grid(row=2, column=0, padx=5, pady=5, sticky="w")
+
+        initials_entry = ttk.Entry(input_frame)
+        initials_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        # ---------- Result Frame (vertical buttons) ----------
+        action_frame = ttk.Frame(left_frame, style="ActionFrame.TFrame", padding=10)
+        action_frame.grid(row=2, column=0, sticky="nsew")
+
+        # Add buttons dynamically
+        button_widgets = []
+        def open_action(be, pe):
+            print("Open:", be.get(), pe.get())
+
+        def receive_action(be, pe):
+            print("Receive:", be.get(), pe.get())
+
+        def finish_action(be, pe):
+            print("Finish:", be.get(), pe.get())
+
+        result_buttons = [
+            ("Open", open_action),
+            ("Receive", receive_action),
+            ("Finish and Open", finish_action)
+        ]
+
+        for label, cmd in result_buttons:
+            btn = ttk.Button(action_frame, style="ActionButton.TButton", text=label, command=lambda c=cmd: c(barcode_entry, product_entry), padding=10)
+            btn.pack(anchor="w", pady=3, fill="x")
+            button_widgets.append(btn)
+        
+        # Focus barcode for fast scanning
+        barcode_entry.focus()
+
+        # ---------- Tab Change Cleanup ----------
         def on_tab_changed(event):
             registry.destroy_all_popups()
+
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
-
-
-        
+    
     def nav(root):
 
         root.title("ALS Inventory Manager")
@@ -384,10 +460,81 @@ if __name__ == "__main__":
 
          # NOTEBOOK in row 1 (below the warning)
         notebook = ttk.Notebook(root)
-        notebook.grid(row=1, column=0, sticky="nsew")  # fill space
+        notebook.grid(row=1, column=2, sticky="nsew")  # fill space
 
         root.grid_rowconfigure(1, weight=1)
-        root.grid_columnconfigure(0, weight=1)
+        root.grid_columnconfigure(2, weight=1)
+        
+       
+        # ---->
+        label_font = tkfont.Font(size=8, weight="bold")
+        
+        left_frame = ttk.Frame(root, width=200)
+        left_frame.grid_rowconfigure(2, weight=1)
+        left_frame.grid(row=1, column=0, sticky="nsew")
+
+
+        input_frame = ttk.Frame(left_frame)
+        input_frame.grid(row=0, column=0, pady=(0, 10), sticky="nw")
+
+        input_frame.grid_columnconfigure(1, weight=1)
+
+        # Barcode
+        ttk.Label(input_frame, text="Barcode:", font=label_font)\
+            .grid(row=0, column=0, padx=5, pady=5, sticky="w")
+
+        barcode_entry = ttk.Entry(input_frame)
+        barcode_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        # Product Name
+        ttk.Label(input_frame, text="Product Name:", font=label_font)\
+            .grid(row=1, column=0, padx=5, pady=5, sticky="w")
+
+        product_entry = ttk.Entry(input_frame)
+        product_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        # Initials
+        ttk.Label(input_frame, text="Initials:", font=label_font)\
+            .grid(row=2, column=0, padx=5, pady=5, sticky="w")
+
+        initials_entry = ttk.Entry(input_frame)
+        initials_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        # ---------- Result Frame (vertical buttons) ----------
+        action_frame = ttk.Frame(left_frame, style="ActionFrame.TFrame", padding=10)
+        action_frame.grid(row=2, column=0, sticky="nsew")
+
+        # Add buttons dynamically
+        button_widgets = []
+        def open_action(be, pe):
+            print("Open:", be.get(), pe.get())
+
+        def receive_action(be, pe):
+            print("Receive:", be.get(), pe.get())
+
+        def finish_action(be, pe):
+            print("Finish:", be.get(), pe.get())
+
+        result_buttons = [
+            ("Open", open_action),
+            ("Receive", receive_action),
+            ("Finish and Open", finish_action)
+        ]
+
+        for label, cmd in result_buttons:
+            btn = ttk.Button(action_frame, style="ActionButton.TButton", text=label, command=lambda c=cmd: c(barcode_entry, product_entry), padding=10)
+            btn.pack(anchor="w", pady=3, fill="x")
+            button_widgets.append(btn)
+        
+        # Focus barcode for fast scanning
+        barcode_entry.focus()
+        
+        # ---------- Vertical Button ---------------
+        text = "Q\nU\nI\nC\nK\n\nL\nO\nG\nS"
+
+        button = tk.Button(root, text=text, command=lambda: left_frame.grid_remove())
+        button.grid(row=1, column=1, sticky="ns")
+        # <--
 
         # Create frames (each tab needs a frame)
         analytics_tab = ttk.Frame(notebook)
@@ -414,7 +561,6 @@ if __name__ == "__main__":
 
 
     root = tk.Tk()
-    # root.maxsize(width=1920, height=1080)
     style = ttk.Style()
 
     run_with_error_handling(root, nav, root)

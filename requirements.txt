@@ -4,3 +4,4 @@ pyinstaller
 tkcalendar
 pyautogui
 rapidfuzz
+pillow
