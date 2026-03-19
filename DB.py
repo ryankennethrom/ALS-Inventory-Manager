@@ -219,7 +219,7 @@ def init_db(db_path, test=False):
     BEGIN
         SELECT
             CASE
-                WHEN (SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = OLD.ProductName AND ActionType = 'Received') - (SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = OLD.ProductName AND ActionType = 'Opened') - OLD.Quantity < 0
+                WHEN (SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = OLD.ProductName AND ActionType = 'Received') - (SELECT COALESCE(SUM(Quantity), 0) FROM NonConsumableLogs WHERE ProductName = OLD.ProductName AND ActionType = 'Opened') + OLD.Quantity < 0
                 THEN RAISE(ABORT, 'Cannot have negative total quantity')
             END;
     END;
@@ -634,6 +634,47 @@ def set_latest_app_version(conn, version: int):
             ON CONFLICT(OnlyRow)
             DO UPDATE SET Version = excluded.Version;
         """, (version,))
+
+def is_product_consumable(db_path, name):
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute("""
+            SELECT *
+            FROM Products
+            WHERE ProductName = ?;
+        """, (name,))
+
+        row = cursor.fetchone()
+
+        if row is None:
+            raise Exception("The product does not exist")
+        print(row) 
+        if row["IsConsumable"] == "n":
+            return False
+        return True
+
+def set_barcode(db_path, name, barcode):
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("""
+            UPDATE Products
+            SET Barcode = ?
+            WHERE ProductName = ?
+        """, (barcode, name))
+
+def get_product_name(db_path, barcode):
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute("""
+            SELECT ProductName
+            FROM Products
+            WHERE Barcode = ?
+        """, (barcode,))
+        row = cursor.fetchone()
+        
+        if row is None:
+            return ""
+
+        return row["ProductName"]
 
 def get_latest_app_version(conn) -> int:
     cursor = conn.execute("""

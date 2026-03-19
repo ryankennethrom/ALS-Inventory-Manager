@@ -14,6 +14,9 @@ import argparse
 from app_version import version
 import tkinter.font as tkfont
 from PIL import Image, ImageDraw, ImageFont, ImageTk
+from entry_helpers import attach_helper
+from tkinter import messagebox
+import pyautogui
 
 def create_consumables_table(parent):
         consumables = RelationInterface(
@@ -439,12 +442,12 @@ if __name__ == "__main__":
         style.configure("ActionButton.TButton", background="lightgrey")
         style.configure("LeftFrame.TFrame", background="darkgrey")
 
-        main_frame = ttk.Frame(root, padding=10)
+        main_frame = ttk.Frame(root)
         main_frame.grid_columnconfigure(0, weight=1)
         main_frame.grid_columnconfigure(1, weight=9)
         main_frame.grid_rowconfigure(0,weight=1)
         
-        main_frame.grid(row=0, column=0, sticky="nsew")
+        main_frame.grid(row=0, column=0, sticky="nsew", pady=10)
 
 
         label_font = tkfont.Font(size=8, weight="bold")
@@ -453,7 +456,7 @@ if __name__ == "__main__":
         left_frame = ttk.Frame(main_frame)
         left_frame.grid_columnconfigure(0, weight=1)
         left_frame.grid_rowconfigure(2, weight=1)
-        left_frame.grid(row=0, column=0, sticky="nsew")
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=10)
 
 
         input_frame = ttk.Frame(left_frame)
@@ -468,6 +471,8 @@ if __name__ == "__main__":
         barcode_entry = ttk.Entry(input_frame)
         barcode_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
+        
+
         # Product Name
         ttk.Label(input_frame, text="Product Name:", font=label_font)\
             .grid(row=1, column=0, padx=5, pady=5, sticky="w")
@@ -475,44 +480,30 @@ if __name__ == "__main__":
         product_entry = ttk.Entry(input_frame)
         product_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
+
         # ---------- Result Frame (vertical buttons) ----------
-        action_frame = ttk.Frame(left_frame, style="ActionFrame.TFrame", padding=10)
+        action_frame = ttk.LabelFrame(left_frame, text="Available actions", padding=10)
         action_frame.grid(row=2, column=0, sticky="nsew")
 
         # Add buttons dynamically
         button_widgets = []
-        def open_action(be, pe):
-            print("Open:", be.get(), pe.get())
-
-        def receive_action(be, pe):
-            print("Receive:", be.get(), pe.get())
-
-        def finish_action(be, pe):
-            print("Finish:", be.get(), pe.get())
-
-        result_buttons = [
-            ("Open", open_action),
-            ("Receive", receive_action),
-            ("Finish and Open", finish_action)
-        ]
-
-        for label, cmd in result_buttons:
-            btn = ttk.Button(action_frame, style="ActionButton.TButton", text=label, command=lambda c=cmd: c(barcode_entry, product_entry), padding=10)
-            btn.pack(anchor="w", pady=3, fill="x")
-            button_widgets.append(btn)
-
-        consumables_widget, consumables_ri = create_consumables_table(main_frame)
         
-        consumables_widget.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        results_frame = ttk.LabelFrame(main_frame, text="Results", padding=10)
+        results_frame.grid(row=0, column=1, sticky="nsew", padx=10)
+        results_frame.grid_rowconfigure(0, weight=1)
+        results_frame.grid_columnconfigure(0, weight=1)
 
-        non_cons_result_frame = ttk.Frame(main_frame, padding=10)
+        consumables_widget, consumables_ri = create_consumables_table(results_frame)
+        consumables_widget.grid(row=0, column=0, sticky="nsew")
+
+        non_cons_result_frame = ttk.Frame(results_frame, padding=10)
         non_cons_result_frame.grid_columnconfigure(0, weight=5)
         non_cons_result_frame.grid_columnconfigure(1, weight=5)
         non_cons_result_frame.grid_rowconfigure(0, weight=1)
 
         non_consumables_widget, non_cons_ri = create_non_consumables_table(non_cons_result_frame)
 
-        non_consumables_widget.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        non_consumables_widget.grid(row=0, column=0, sticky="nsew", padx=10)
 
         productsTotalSupplyRI = RelationInterface(
             relation_name="ProductsTotalSupply",
@@ -524,24 +515,89 @@ if __name__ == "__main__":
         productsTotalSupply = RelationWidget(
             non_cons_result_frame,
             productsTotalSupplyRI,
-            labels=["Analytics"],
             is_view=True,
             title="Total Quantity Available"
         )
 
-        productsTotalSupply.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
-        non_cons_result_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        def populate_and_invoke_product_entry(event):
+            product_entry.delete(0, tk.END)
+            product_entry.insert(0, DB.get_product_name(productsTotalSupply.relation.db_path, barcode_entry.get()))
+            product_entry.focus_set()
+            pyautogui.press("enter")
 
-        # non_cons_result_frame.grid_remove()
+        barcode_entry.bind("<Return>", lambda event: run_with_error_handling(root, populate_and_invoke_product_entry, event))
 
-        # Focus barcode for fast scanning
-        barcode_entry.focus()
+        productsTotalSupply.grid(row=0, column=1, sticky="nsew", padx=10)
+
+        non_cons_result_frame.grid(row=0, column=0, sticky="nsew",)
+
+        non_cons_result_frame.grid_remove()
+        consumables_widget.grid_remove()
+        
+        def open_non_cons(name, barcode):
+            non_consumables_widget.add_button.invoke()
+            
+            non_consumables_widget.add_entries["ActionType"].delete(0, tk.END)
+            non_consumables_widget.add_entries["ActionType"].insert(0, "Opened")
+            
+            non_consumables_widget.add_entries["ProductName"].delete(0, tk.END)
+            non_consumables_widget.add_entries["ProductName"].insert(0, name)
+
+        def receive_non_cons(name, barcode):
+            non_consumables_widget.add_button.invoke()
+
+        def set_current_barcode(name, barcode):
+            answer = messagebox.askyesno(
+                title="Confirm ",
+                message=f"Set '{barcode}' as the barcode for '{name}'?"
+            )
+
+            if answer:
+                run_with_error_handling(root, DB.set_barcode, productsTotalSupply.relation.db_path, name, barcode)
+                messagebox.showinfo("Success", f"Barcode for '{name}' updated to '{barcode}'")
+            else:
+                print("Action canceled")
+
+        def finish_action(be, pe):
+            print("Finish:", be.get(), pe.get())
+
+       
+        def on_product_entered(event):
+            if not DB.is_product_consumable(productsTotalSupplyRI.db_path, product_entry.get()):
+                productsTotalSupply.search_entry.delete(0, tk.END)
+                productsTotalSupply.search_entry.insert(0, product_entry.get())
+                productsTotalSupply.search_button.invoke()
+
+                non_consumables_widget.search_entry.delete(0, tk.END)
+                non_consumables_widget.search_entry.insert(0, product_entry.get())
+                non_consumables_widget.search_button.invoke()
+
+                non_cons_result_frame.grid()
+                
+                for widg in button_widgets:
+                    widg.destroy()
+
+                buttons = [
+                    ("Assign Barcode", set_current_barcode),
+                    ("Receive", receive_non_cons),
+                    ("Open", open_non_cons),
+                ]
+
+                for label, cmd in buttons:
+                    btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
+                    btn.pack(anchor="w", pady=3, fill="x")
+                    button_widgets.append(btn)
+
 
         # ---------- Tab Change Cleanup ----------
         def on_tab_changed(event):
+            barcode_entry.focus()
             registry.destroy_all_popups()
 
+        attach_helper(root, "ProductName", product_entry, productsTotalSupplyRI.db_path, productsTotalSupplyRI.relation_name, productsTotalSupply.all_columns, productsTotalSupply.all_column_types)
+
+        product_entry.bind("<Return>", lambda event: run_with_error_handling(root, on_product_entered, event))
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
     
     def nav(root):

@@ -260,8 +260,8 @@ def attach_fuzzy_list(entry, data):
                 entry.delete(0, tk.END)
                 entry.insert(0, value)
                 entry.focus_set()
-                pyautogui.press("enter")
                 dropdown.destroy()
+                pyautogui.press("enter")
 
         def close_if_out_of_focus(e):
             try:

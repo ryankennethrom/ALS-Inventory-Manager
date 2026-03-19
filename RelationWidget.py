@@ -82,10 +82,15 @@ class RelationWidget(ttk.LabelFrame):
         self.popup = None
         self.advance_button = None
         self.advanced_search_widgets = None
+        self.search_entry = None
         self.search_button = None
+        self.add_item_button = None
+        self.add_button = None
+        self.add_entries = None
         self.create_widgets()
         self.update_table()
         self.apply_filters_button = None
+        
 
         style = ttk.Style()
         style.configure("LightGrey.Treeview",
@@ -208,7 +213,8 @@ class RelationWidget(ttk.LabelFrame):
         self.button_frame = ttk.Frame(self)
         self.button_frame.grid(row=4, column=0, pady=5)
         if not self.is_view:
-            ttk.Button(self.button_frame, text="Add", command=self.add).pack(side=tk.LEFT, padx=5)
+            self.add_button = ttk.Button(self.button_frame, text="Add", command=self.add)
+            self.add_button.pack(side=tk.LEFT, padx=5)
             ttk.Button(self.button_frame, text="Delete", command=self.delete).pack(side=tk.LEFT, padx=5)
             self.tree.bind("<Double-1>", self.on_double_click)
         ttk.Button(self.button_frame, text="Export Results", command=self.export_results).pack(side=tk.LEFT, padx=5)
@@ -735,6 +741,7 @@ class RelationWidget(ttk.LabelFrame):
                 # Insert into the Entry
                 entry.delete(0, tk.END)
                 entry.insert(0, today)
+        self.add_entries = entries
 
         def save_item(event=None):
             details = {col: entries[col].get() for col in self.create_item_columns}
@@ -743,7 +750,8 @@ class RelationWidget(ttk.LabelFrame):
                 self.update_table()
                 self.popup.destroy() 
 
-        ttk.Button(frame, text="Add Item", command=save_item).grid(row=len(self.show_columns)+1, column=0, columnspan=2, pady=10)
+        self.add_item_button = ttk.Button(frame, text="Add Item", command=save_item)
+        self.add_item_button.grid(row=len(self.show_columns)+1, column=0, columnspan=2, pady=10)
         # ---------- Center on parent widget ----------
         self.popup.update_idletasks()  # calculate size
 
