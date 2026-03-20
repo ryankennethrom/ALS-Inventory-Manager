@@ -2,6 +2,7 @@ import DB
 import pandas as pd
 import sqlite3
 from datetime import datetime
+import numpy as np
 
 def insert_excel_to_sqlite(
     excel_path: str,
@@ -140,7 +141,7 @@ if __name__ == "__main__":
 
     merged["Price"] = merged["Price I"].fillna(merged["Price PM"])
     merged["ProductName"] = merged["ProductName_x"].fillna(merged["ProductName_y"])
-    merged["Barcode"] = ""
+    merged["Barcode"] = np.random.randint(0, 10000000, size=len(merged))
     merged["AlsItemNumber"] = merged["AlsItemNumber_x"].fillna(merged["AlsItemNumber_y"])
     merged["VendorItemNumber"] = merged["VendorItemNumber_x"].fillna(merged["VendorItemNumber_y"])
     

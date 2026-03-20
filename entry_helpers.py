@@ -404,8 +404,8 @@ def attach_filepath_manager(entry):
                 else:
                     raise Exception("File Path entry helper doesn't recognize a user's input")
                 entry.focus_set()
-                pyautogui.press("enter")
                 dropdown.destroy()
+                pyautogui.press("enter")
 
         def close_if_out_of_focus(e):
             try:

@@ -521,12 +521,15 @@ if __name__ == "__main__":
 
 
         def populate_and_invoke_product_entry(event):
+            root.config(cursor="watch")
             product_entry.delete(0, tk.END)
             product_entry.insert(0, DB.get_product_name(productsTotalSupply.relation.db_path, barcode_entry.get()))
             product_entry.focus_set()
             pyautogui.press("enter")
+            root.config(cursor="")
 
         barcode_entry.bind("<Return>", lambda event: run_with_error_handling(root, populate_and_invoke_product_entry, event))
+        barcode_entry.bind("<Tab>", lambda event: run_with_error_handling(root, populate_and_invoke_product_entry, event))
 
         productsTotalSupply.grid(row=0, column=1, sticky="nsew", padx=10)
 
@@ -564,31 +567,45 @@ if __name__ == "__main__":
 
        
         def on_product_entered(event):
-            if not DB.is_product_consumable(productsTotalSupplyRI.db_path, product_entry.get()):
-                productsTotalSupply.search_entry.delete(0, tk.END)
-                productsTotalSupply.search_entry.insert(0, product_entry.get())
-                productsTotalSupply.search_button.invoke()
+            root.config(cursor="watch")
+            try:
+                if not DB.is_product_consumable(productsTotalSupplyRI.db_path, product_entry.get()):
 
-                non_consumables_widget.search_entry.delete(0, tk.END)
-                non_consumables_widget.search_entry.insert(0, product_entry.get())
-                non_consumables_widget.search_button.invoke()
+                    productsTotalSupply.advanced_search(productsTotalSupply.advance_button, silent=True)
+                    productsTotalSupply.advanced_search_widgets["ProductName"][1].set("exactly")
+                    productsTotalSupply.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
+                    productsTotalSupply.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
+                    productsTotalSupply.apply_filters_button.invoke()
 
-                non_cons_result_frame.grid()
-                
+                    non_consumables_widget.advanced_search(non_consumables_widget.advance_button, silent=True)
+                    non_consumables_widget.advanced_search_widgets["ProductName"][1].set("exactly")
+                    non_consumables_widget.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
+                    non_consumables_widget.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
+                    non_consumables_widget.apply_filters_button.invoke()
+
+                    non_cons_result_frame.grid()
+                    
+                    for widg in button_widgets:
+                        widg.destroy()
+
+                    buttons = [
+                        ("Assign Barcode", set_current_barcode),
+                        ("Receive", receive_non_cons),
+                        ("Open", open_non_cons),
+                    ]
+
+                    for label, cmd in buttons:
+                        btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
+                        btn.pack(anchor="w", pady=3, fill="x")
+                        button_widgets.append(btn)
+            except Exception as e:
                 for widg in button_widgets:
                     widg.destroy()
+                non_cons_result_frame.grid_remove()
+                consumables_widget.grid_remove()
 
-                buttons = [
-                    ("Assign Barcode", set_current_barcode),
-                    ("Receive", receive_non_cons),
-                    ("Open", open_non_cons),
-                ]
-
-                for label, cmd in buttons:
-                    btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
-                    btn.pack(anchor="w", pady=3, fill="x")
-                    button_widgets.append(btn)
-
+            pyautogui.press("Tab")
+            root.config(cursor="")
 
         # ---------- Tab Change Cleanup ----------
         def on_tab_changed(event):
@@ -597,7 +614,9 @@ if __name__ == "__main__":
 
         attach_helper(root, "ProductName", product_entry, productsTotalSupplyRI.db_path, productsTotalSupplyRI.relation_name, productsTotalSupply.all_columns, productsTotalSupply.all_column_types)
 
-        product_entry.bind("<Return>", lambda event: run_with_error_handling(root, on_product_entered, event))
+        product_entry.bind("<Return>", on_product_entered)
+        product_entry.bind("<Tab>", on_product_entered)
+        
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
     
     def nav(root):
@@ -645,7 +664,7 @@ if __name__ == "__main__":
     def show_warning_if_app_outdated():
         if latest_deployed is not None and latest_deployed > VERSION:
             warning_frame = tk.Frame(root, bg="#8B0000")
-            warning_frame.grid(row=0, column=0, sticky="ew")  # fill horizontally
+            warning_frame.grid(row=0, column=1, sticky="ew")
 
             tk.Label(
                 warning_frame,

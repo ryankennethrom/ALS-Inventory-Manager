@@ -564,7 +564,7 @@ class RelationWidget(ttk.LabelFrame):
         return filters
 
     # -------------------- Actions --------------------
-    def advanced_search(self, advance_btn):
+    def advanced_search(self, advance_btn, silent=False):
         if self.popup is not None and self.popup.winfo_exists():
             return
         self.popup = self.create_popup(title="Advanced Search")
@@ -572,6 +572,8 @@ class RelationWidget(ttk.LabelFrame):
         frame = self.create_frame(popup)
 
         advanced_search_widgets = self.create_advanced_search_widgets(frame, self.all_columns, self.all_column_types)
+        
+        self.advanced_search_widgets = advanced_search_widgets
 
         button_frame = ttk.Frame(frame)
         button_frame.grid(row=len(self.all_columns), column=0, columnspan=3, pady=(15, 0))
@@ -593,7 +595,8 @@ class RelationWidget(ttk.LabelFrame):
         ttk.Button(button_frame, text="Reset", command=reset_filters).pack(side="left", padx=5)
         ttk.Button(button_frame, text="Cancel", command=popup.destroy).pack(side="left", padx=5)
 
-        self.popup.deiconify()
+        if not silent:
+            self.popup.deiconify()
         self.hold_popup(popup)
     
     def refresh(self):
