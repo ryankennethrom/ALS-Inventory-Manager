@@ -631,9 +631,15 @@ class RelationWidget(ttk.LabelFrame):
         selected_index = self.tree.index(self.tree.selection()[0])  # numeric index
         data = self.relation.get_item(selected_index)
 
-        self.open_update_popup(selected_item, data)
+        self.open_update_popup(selected_index, data)
 
-    def open_update_popup(self, item_id, data):
+    def double_click(self, field, value):
+        n = len(self.relation.curr_results)
+        for i in range(0, n):
+            if self.relation.curr_results[n-1-i][field] == value:
+                self.open_update_popup(n-1-i, self.relation.curr_results[n-1-i])
+
+    def open_update_popup(self, item_index, data):
         if self.popup is not None and self.popup.winfo_exists():
             return
         self.popup = self.create_popup(title="Update Item")
@@ -642,21 +648,25 @@ class RelationWidget(ttk.LabelFrame):
         frame.pack(fill="both", expand=True)
 
         entries = {}
-        
+        update_widgets = {}
         for i, col in enumerate(data.keys()):
             if col in self.exclude_fields_on_update:
                 continue
-            ttk.Label(frame, text=f"{col}:").grid(row=i, column=0, sticky="e", pady=2)
+            label = ttk.Label(frame, text=f"{col}:")
+            label.grid(row=i, column=0, sticky="e", pady=2)
             entry = ttk.Entry(frame)
             entry.grid(row=i, column=1, pady=2, padx=5)
             entry.insert(0, data[col])  # pre-fill current value
             entries[col] = entry
+            
+            update_widgets[col] = {"Label":label, "Entry":entry}
 
             attach_helper(self.master, col, entry, self.relation.db_path, self.relation.relation_name, self.all_columns, self.all_column_types)
+        self.update_widgets = update_widgets 
 
         def save_changes(event=None):
             new_data = {col: entries[col].get() for col in data.keys() if col in entries}
-            selected_index = self.tree.index(self.tree.selection()[0])  # numeric index
+            selected_index = item_index
             result = run_with_error_handling(self.popup, self.relation.on_item_updated, selected_index, new_data)
             self.update_table()
             self.popup.destroy()
@@ -682,12 +692,6 @@ class RelationWidget(ttk.LabelFrame):
                     self.popup.destroy()
 
             confirm_delete(self.popup, on_delete)
-            # Ask user for confirmation
-            # confirm = messagebox.askyesno(
-            #    "Confirm Delete",
-            #    "Are you sure you want to delete this item?",
-            #    parent=self.popup
-            # )
                         
         # Create an inner frame to hold both buttons
         btn_frame = ttk.Frame(frame)
@@ -729,14 +733,17 @@ class RelationWidget(ttk.LabelFrame):
         frame.pack()
 
         entries = {}
+        add_widgets = {}
         for i, col in enumerate(self.all_columns):
             if self.create_item_columns and col not in self.create_item_columns:
                 continue
-            ttk.Label(frame, text=f"{col}:").grid(row=i, column=0, sticky="e", pady=2)
+            label = ttk.Label(frame, text=f"{col}:")
+            label.grid(row=i, column=0, sticky="e", pady=2)
             entry = ttk.Entry(frame)
             attach_helper(self.master, col, entry, self.relation.db_path, self.relation.relation_name, self.all_columns, self.all_column_types)
             entry.grid(row=i, column=1, pady=2, padx=5)
             entries[col] = entry
+            add_widgets[col] = {"Label":label, "Entry" : entry}
             if col == "DateReceived" or col == "Date":
                 # Get today's date
                 today = date.today().strftime("%Y-%m-%d")
@@ -745,6 +752,7 @@ class RelationWidget(ttk.LabelFrame):
                 entry.delete(0, tk.END)
                 entry.insert(0, today)
         self.add_entries = entries
+        self.add_widgets = add_widgets
 
         def save_item(event=None):
             details = {col: entries[col].get() for col in self.create_item_columns}

@@ -253,14 +253,13 @@ def attach_fuzzy_list(entry, data):
         listbox.pack(side="left", fill="both", expand=True)
         
 
-        # Handle selection
         def on_button_down(event=None):
             if listbox.curselection():
                 value = listbox.get(listbox.curselection()[0])  # fixed tuple usage
+                dropdown.destroy()
                 entry.delete(0, tk.END)
                 entry.insert(0, value)
                 entry.focus_set()
-                dropdown.destroy()
                 pyautogui.press("enter")
 
         def close_if_out_of_focus(e):
@@ -282,30 +281,6 @@ def attach_fuzzy_list(entry, data):
                 return
             else:
                 dropdown.destroy()
-        listbox.start=-1
-        def move_down(e):
-            if not dropdown or not dropdown.winfo_exists():
-                return
-            listbox.focus_set()
-            listbox.start += 1
-            listbox.start = listbox.start%listbox.size() 
-            listbox.selection_clear(0, tk.END)
-            listbox.activate(listbox.start)
-            listbox.selection_set(listbox.start)
-            listbox.see(listbox.start)
-            return "break"
-
-        def move_up(e):
-            listbox.start -= 1
-            if listbox.start < 0:
-                entry.focus_set()
-            else:
-                listbox.start = listbox.start%listbox.size()
-                listbox.selection_clear(0, tk.END)
-                listbox.activate(listbox.start)
-                listbox.selection_set(listbox.start)
-                listbox.see(listbox.start)
-            return "break"
         
         def focus_listbox(e):
             if dropdown.focus_get() != listbox:

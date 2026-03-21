@@ -648,21 +648,23 @@ def is_product_consumable(db_path, name):
 
         if row is None:
             raise Exception("The product does not exist")
-        print(row) 
         if row["IsConsumable"] == "n":
             return False
         return True
 
-def set_barcode(db_path, name, barcode):
-    with sqlite3.connect(db_path) as conn:
-        conn.execute("""
+def set_barcode(conn, name, barcode):
+    with conn:
+        cur = conn.cursor()
+        cur.execute("""
             UPDATE Products
             SET Barcode = ?
             WHERE ProductName = ?
         """, (barcode, name))
+        if cur.rowcount <= 0:
+            raise Exception("No product was updated")
 
-def get_product_name(db_path, barcode):
-    with sqlite3.connect(db_path) as conn:
+def get_product_name(conn, barcode):
+    with conn:  
         conn.row_factory = sqlite3.Row
         cursor = conn.execute("""
             SELECT ProductName
@@ -670,11 +672,68 @@ def get_product_name(db_path, barcode):
             WHERE Barcode = ?
         """, (barcode,))
         row = cursor.fetchone()
-        
-        if row is None:
-            return ""
+    
+    if row is None:
+        return ""
 
-        return row["ProductName"]
+    return row["ProductName"]
+
+def is_non_cons_product_openable(conn, name):
+    conn.row_factory = sqlite3.Row
+    cursor = conn.execute("""
+        SELECT 1
+        FROM ProductsTotalSupply
+        WHERE ProductName = ? and TotalQuantityAvailable = 0;
+    """, (name,))
+
+    return cursor.fetchone() is None
+
+def is_cons_product_openable(conn, name):
+    conn.row_factory = sqlite3.Row
+    cursor = conn.execute("""
+        SELECT 1
+        FROM ConsumableLogs
+        WHERE ProductName = ? and DateOpened != '' and DateFinished = ''
+        LIMIT 1;
+    """, (name,))
+
+    return cursor.fetchone() is None
+
+def is_cons_product_openable(conn, name):
+    conn.row_factory = sqlite3.Row
+
+    # Check if any unfinished product exists
+    unfinished = conn.execute("""
+        SELECT 1
+        FROM ConsumableLogs
+        WHERE ProductName = ? AND DateOpened != '' AND DateFinished = ''
+        LIMIT 1
+    """, (name,)).fetchone()
+
+    if unfinished:
+        # There is an unfinished product, cannot open a new one
+        return False
+
+    # Check if any available product exists
+    available = conn.execute("""
+        SELECT 1
+        FROM ConsumableLogs
+        WHERE ProductName = ? AND DateOpened = '' AND DateFinished = ''
+        LIMIT 1
+    """, (name,)).fetchone()
+
+    return available is not None
+
+def is_cons_product_finishable(conn, name):
+    conn.row_factory = sqlite3.Row
+    cursor = conn.execute("""
+        SELECT 1
+        FROM ConsumableLogs
+        WHERE ProductName = ? and DateOpened != '' and DateFinished = ''
+        LIMIT 1;
+    """, (name,))
+
+    return cursor.fetchone() is not None
 
 def get_latest_app_version(conn) -> int:
     cursor = conn.execute("""

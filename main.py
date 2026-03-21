@@ -17,6 +17,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageTk
 from entry_helpers import attach_helper
 from tkinter import messagebox
 import pyautogui
+from datetime import date
 
 def create_consumables_table(parent):
         consumables = RelationInterface(
@@ -432,7 +433,7 @@ if __name__ == "__main__":
         canvas.bind("<Configure>", resize_inner_frame)
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
-    def quicklogs_content(notebook, root):
+    def quicklogs_content(notebook, root, db_conn):
         # -------------------- Main Window --------------------
         root.grid_rowconfigure(0, weight=1)
         root.grid_columnconfigure(0, weight=1)
@@ -495,6 +496,7 @@ if __name__ == "__main__":
 
         consumables_widget, consumables_ri = create_consumables_table(results_frame)
         consumables_widget.grid(row=0, column=0, sticky="nsew")
+        registry.register(consumables_widget, "Results")
 
         non_cons_result_frame = ttk.Frame(results_frame, padding=10)
         non_cons_result_frame.grid_columnconfigure(0, weight=5)
@@ -504,6 +506,7 @@ if __name__ == "__main__":
         non_consumables_widget, non_cons_ri = create_non_consumables_table(non_cons_result_frame)
 
         non_consumables_widget.grid(row=0, column=0, sticky="nsew", padx=10)
+        registry.register(non_consumables_widget, "Results")
 
         productsTotalSupplyRI = RelationInterface(
             relation_name="ProductsTotalSupply",
@@ -516,6 +519,7 @@ if __name__ == "__main__":
             non_cons_result_frame,
             productsTotalSupplyRI,
             is_view=True,
+            labels=["Results"],
             title="Total Quantity Available"
         )
 
@@ -523,7 +527,7 @@ if __name__ == "__main__":
         def populate_and_invoke_product_entry(event):
             root.config(cursor="watch")
             product_entry.delete(0, tk.END)
-            product_entry.insert(0, DB.get_product_name(productsTotalSupply.relation.db_path, barcode_entry.get()))
+            product_entry.insert(0, DB.get_product_name(db_conn, barcode_entry.get()))
             product_entry.focus_set()
             pyautogui.press("enter")
             root.config(cursor="")
@@ -545,12 +549,18 @@ if __name__ == "__main__":
             non_consumables_widget.add_entries["ProductName"].delete(0, tk.END)
             non_consumables_widget.add_entries["ProductName"].insert(0, name)
 
+            modify_widgets(non_consumables_widget.add_widgets, include=["Quantity", "Date", "Initials"])
+            non_consumables_widget.hold_popup(non_consumables_widget.popup)
+
         def receive_non_cons(name, barcode):
             non_consumables_widget.add_button.invoke()
             non_consumables_widget.add_entries["ActionType"].delete(0, tk.END)
             non_consumables_widget.add_entries["ActionType"].insert(0, "Received")
             non_consumables_widget.add_entries["ProductName"].delete(0, tk.END)
             non_consumables_widget.add_entries["ProductName"].insert(0, name)
+
+            modify_widgets(non_consumables_widget.add_widgets, include=["Quantity", "Date", "Initials", "PONumber"])
+            non_consumables_widget.hold_popup(non_consumables_widget.popup)
 
         def set_current_barcode(name, barcode):
             answer = messagebox.askyesno(
@@ -559,16 +569,80 @@ if __name__ == "__main__":
             )
 
             if answer:
-                run_with_error_handling(root, DB.set_barcode, productsTotalSupply.relation.db_path, name, barcode)
-                messagebox.showinfo("Success", f"Barcode for '{name}' updated to '{barcode}'")
+                root.config(cursor="watch")
+                result = run_with_error_handling(root, DB.set_barcode, db_conn, name, barcode)
+                root.config(cursor="")
+                if result["status"].lower() == "ok":
+                    messagebox.showinfo("Success", f"Barcode for '{name}' updated to '{barcode}'")
             else:
                 print("Action canceled")
+        
+        def modify_widgets(widgets, include=[], exclude=[]):
+            for key in widgets.keys():
+                value = widgets[key]
+                if include: 
+                    if key in include:
+                        value["Label"].grid()
+                        value["Entry"].grid()
+                    else:
+                        value["Label"].grid_remove()
+                        value["Entry"].grid_remove()
 
-        def finish_action(be, pe):
-            print("Finish:", be.get(), pe.get())
+                if exclude:
+                    if key in exclude:
+                        value["Label"].grid_remove()
+                        value["Entry"].grid_remove()
+                    else:
+                        value["Label"].grid()
+                        value["Entry"].grid()
 
-       
-        def on_product_entered(event):
+
+        def build_available_cons_actions(product_name, barcode):        
+            for widg in button_widgets:
+                widg.destroy()
+
+            buttons = [
+                ("Assign Barcode", set_current_barcode),
+                ("Receive", receive_cons),
+            ]
+
+            if DB.is_cons_product_openable(db_conn, product_name):
+                buttons.append(("Open", open_cons))
+
+            if DB.is_cons_product_finishable(db_conn, product_name):
+                buttons.append(("Finish", finish_cons))
+
+            for label, cmd in buttons:
+                btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_name, barcode), padding=10)
+                btn.pack(anchor="w", pady=3, fill="x")
+                button_widgets.append(btn)
+
+        def receive_cons(name, barcode):
+            consumables_widget.add_button.invoke()
+            consumables_widget.popup.bind("<Destroy>", lambda e: build_available_cons_actions(name, barcode))
+            modify_widgets(consumables_widget.add_widgets, exclude=["id", "DateOpened", "OpenedInitials", "DateFinished", "FinishedInitials"])
+            consumables_widget.add_widgets["ProductName"]["Entry"].delete(0, tk.END)
+            consumables_widget.add_widgets["ProductName"]["Entry"].insert(0, name)
+            consumables_widget.hold_popup(consumables_widget.popup)
+
+        def open_cons(name, barcode):
+            consumables_widget.double_click("DateOpened", "")
+            consumables_widget.popup.bind("<Destroy>", lambda e: build_available_cons_actions(name, barcode))
+            modify_widgets(consumables_widget.update_widgets, include=["id", "DateOpened", "OpenedInitials"])
+            consumables_widget.update_widgets["DateOpened"]["Entry"].delete(0, tk.END)
+            consumables_widget.update_widgets["DateOpened"]["Entry"].insert(0, date.today().strftime("%Y-%m-%d"))
+            consumables_widget.hold_popup(consumables_widget.popup)
+
+        def finish_cons(name, barcode):
+            consumables_widget.double_click(field="DateFinished", value="")
+            consumables_widget.popup.bind("<Destroy>", lambda e: build_available_cons_actions(name, barcode))
+            modify_widgets(consumables_widget.update_widgets, include=["id", "DateFinished", "FinishedInitials"])
+            consumables_widget.update_widgets["DateFinished"]["Entry"].delete(0, tk.END)
+            consumables_widget.update_widgets["DateFinished"]["Entry"].insert(0, date.today().strftime("%Y-%m-%d"))
+            consumables_widget.hold_popup(consumables_widget.popup)
+
+        def on_product_entered(event=None):
+            product_name=product_entry.get()
             root.config(cursor="watch")
             for widg in button_widgets:
                 widg.destroy()
@@ -603,8 +677,10 @@ if __name__ == "__main__":
                 buttons = [
                     ("Assign Barcode", set_current_barcode),
                     ("Receive", receive_non_cons),
-                    ("Open", open_non_cons),
                 ]
+
+                if DB.is_non_cons_product_openable(db_conn, product_entry.get()):
+                    buttons.append(("Open", open_non_cons))
 
                 for label, cmd in buttons:
                     btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
@@ -618,21 +694,7 @@ if __name__ == "__main__":
                 consumables_widget.apply_filters_button.invoke()
 
                 consumables_widget.grid()
-
-                for widg in button_widgets:
-                    widg.destroy()
-
-                buttons = [
-                    ("Assign Barcode", set_current_barcode),
-                    ("Receive", receive_non_cons),
-                    ("Open", open_non_cons),
-                    ("Finish", open_non_cons),
-                ]
-
-                for label, cmd in buttons:
-                    btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
-                    btn.pack(anchor="w", pady=3, fill="x")
-                    button_widgets.append(btn)
+                build_available_cons_actions(product_name, barcode_entry.get())
 
             pyautogui.press("Tab")
             root.config(cursor="")
@@ -646,10 +708,10 @@ if __name__ == "__main__":
 
         product_entry.bind("<Return>", on_product_entered)
         product_entry.bind("<Tab>", on_product_entered)
-        
+        # registry.on_table_update(callback=lambda: build_available_cons_actions(product_entry.get(), barcode_entry.get()), parents={"Results"})
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
     
-    def nav(root):
+    def nav(root, db_conn):
 
         root.title("ALS Inventory Manager")
         root.geometry("1200x700")
@@ -681,7 +743,7 @@ if __name__ == "__main__":
         non_cons_log_content(notebook, non_cons_log_tab)
         analytics_content(notebook, analytics_tab)
         product_manager_content(notebook, product_manager_tab)
-        quicklogs_content(notebook, quicklogs_tab)
+        quicklogs_content(notebook, quicklogs_tab, db_conn)
 
         registry.refresh_all(exceptions=["Early"])
 
@@ -689,7 +751,10 @@ if __name__ == "__main__":
     root = tk.Tk()
     style = ttk.Style()
 
-    run_with_error_handling(root, nav, root)
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL;")
+
+    run_with_error_handling(root, nav, root, conn)
 
     def show_warning_if_app_outdated():
         if latest_deployed is not None and latest_deployed > VERSION:
@@ -708,4 +773,4 @@ if __name__ == "__main__":
     show_warning_if_app_outdated()
 
     root.mainloop()
-
+    conn.close()
