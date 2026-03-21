@@ -540,15 +540,17 @@ if __name__ == "__main__":
         
         def open_non_cons(name, barcode):
             non_consumables_widget.add_button.invoke()
-            
             non_consumables_widget.add_entries["ActionType"].delete(0, tk.END)
             non_consumables_widget.add_entries["ActionType"].insert(0, "Opened")
-            
             non_consumables_widget.add_entries["ProductName"].delete(0, tk.END)
             non_consumables_widget.add_entries["ProductName"].insert(0, name)
 
         def receive_non_cons(name, barcode):
             non_consumables_widget.add_button.invoke()
+            non_consumables_widget.add_entries["ActionType"].delete(0, tk.END)
+            non_consumables_widget.add_entries["ActionType"].insert(0, "Received")
+            non_consumables_widget.add_entries["ProductName"].delete(0, tk.END)
+            non_consumables_widget.add_entries["ProductName"].insert(0, name)
 
         def set_current_barcode(name, barcode):
             answer = messagebox.askyesno(
@@ -568,41 +570,69 @@ if __name__ == "__main__":
        
         def on_product_entered(event):
             root.config(cursor="watch")
+            for widg in button_widgets:
+                widg.destroy()
+            non_cons_result_frame.grid_remove()
+            consumables_widget.grid_remove()
+
+            is_consumable = False
             try:
-                if not DB.is_product_consumable(productsTotalSupplyRI.db_path, product_entry.get()):
+                is_consumable = DB.is_product_consumable(productsTotalSupplyRI.db_path, product_entry.get())
+            except Exception:
+                root.config(cursor="")
+                return
 
-                    productsTotalSupply.advanced_search(productsTotalSupply.advance_button, silent=True)
-                    productsTotalSupply.advanced_search_widgets["ProductName"][1].set("exactly")
-                    productsTotalSupply.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
-                    productsTotalSupply.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
-                    productsTotalSupply.apply_filters_button.invoke()
+            if not is_consumable:
+                productsTotalSupply.advanced_search(productsTotalSupply.advance_button, silent=True)
+                productsTotalSupply.advanced_search_widgets["ProductName"][1].set("exactly")
+                productsTotalSupply.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
+                productsTotalSupply.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
+                productsTotalSupply.apply_filters_button.invoke()
 
-                    non_consumables_widget.advanced_search(non_consumables_widget.advance_button, silent=True)
-                    non_consumables_widget.advanced_search_widgets["ProductName"][1].set("exactly")
-                    non_consumables_widget.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
-                    non_consumables_widget.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
-                    non_consumables_widget.apply_filters_button.invoke()
+                non_consumables_widget.advanced_search(non_consumables_widget.advance_button, silent=True)
+                non_consumables_widget.advanced_search_widgets["ProductName"][1].set("exactly")
+                non_consumables_widget.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
+                non_consumables_widget.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
+                non_consumables_widget.apply_filters_button.invoke()
 
-                    non_cons_result_frame.grid()
-                    
-                    for widg in button_widgets:
-                        widg.destroy()
-
-                    buttons = [
-                        ("Assign Barcode", set_current_barcode),
-                        ("Receive", receive_non_cons),
-                        ("Open", open_non_cons),
-                    ]
-
-                    for label, cmd in buttons:
-                        btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
-                        btn.pack(anchor="w", pady=3, fill="x")
-                        button_widgets.append(btn)
-            except Exception as e:
+                non_cons_result_frame.grid()
+                
                 for widg in button_widgets:
                     widg.destroy()
-                non_cons_result_frame.grid_remove()
-                consumables_widget.grid_remove()
+
+                buttons = [
+                    ("Assign Barcode", set_current_barcode),
+                    ("Receive", receive_non_cons),
+                    ("Open", open_non_cons),
+                ]
+
+                for label, cmd in buttons:
+                    btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
+                    btn.pack(anchor="w", pady=3, fill="x")
+                    button_widgets.append(btn)
+            else:
+                consumables_widget.advanced_search(non_consumables_widget.advance_button, silent=True)
+                consumables_widget.advanced_search_widgets["ProductName"][1].set("exactly")
+                consumables_widget.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
+                consumables_widget.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
+                consumables_widget.apply_filters_button.invoke()
+
+                consumables_widget.grid()
+
+                for widg in button_widgets:
+                    widg.destroy()
+
+                buttons = [
+                    ("Assign Barcode", set_current_barcode),
+                    ("Receive", receive_non_cons),
+                    ("Open", open_non_cons),
+                    ("Finish", open_non_cons),
+                ]
+
+                for label, cmd in buttons:
+                    btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
+                    btn.pack(anchor="w", pady=3, fill="x")
+                    button_widgets.append(btn)
 
             pyautogui.press("Tab")
             root.config(cursor="")
