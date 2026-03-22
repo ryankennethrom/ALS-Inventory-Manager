@@ -294,7 +294,7 @@ def init_db(db_path, test=False):
     
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS ConsumablesReport AS
-    SELECT c.ProductName, p.Station, c.id AS "Order", c.LOT AS "Lot Number", c.CertifiedValue AS "Certified Value", c.CertificationDate AS "Certification Date", c.DateReceived AS "Date Received", c.ReceivedInitials AS "Received by", c.DateOpened AS "Date Opened", c.OpenedInitials AS "Opened by", c.ExpiryDate AS "Expiry Date", c.DateFinished AS "Date Depleted", c.FinishedInitials AS "Disposed by", c.Comments
+    SELECT c.ProductName, p.Station, c.id AS "Order", c.LOT AS "Lot Number", c.CertifiedValue AS "Certified Value", c.CertificationDate AS "Certification Date", c.PONumber, c.DateReceived AS "Date Received", c.ReceivedInitials AS "Received by", c.DateOpened AS "Date Opened", c.OpenedInitials AS "Opened by", c.ExpiryDate AS "Expiry Date", c.DateFinished AS "Date Depleted", c.FinishedInitials AS "Disposed by", c.Comments
     FROM ConsumableLogs c
     LEFT JOIN Products p ON c.ProductName = p.ProductName;
     """)
