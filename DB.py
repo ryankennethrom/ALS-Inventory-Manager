@@ -664,7 +664,7 @@ def set_barcode(db_path, name, barcode):
             raise Exception("No product was updated")
 
 def get_product_name(db_path, barcode):
-     with sqlite3.connect(db_path) as conn:  
+    with sqlite3.connect(db_path) as conn:  
         conn.row_factory = sqlite3.Row
         cursor = conn.execute("""
             SELECT ProductName
