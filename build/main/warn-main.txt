@@ -366,3 +366,4 @@ missing module named 'matplotlib.table' - imported by pandas.plotting._misc (con
 missing module named 'matplotlib.figure' - imported by pandas.plotting._misc (conditional)
 missing module named 'matplotlib.axes' - imported by pandas.plotting._misc (conditional)
 missing module named matplotlib - imported by pandas.plotting._core (conditional)
+invalid module named DB - imported by C:\Users\unloc\Github\ALS-Inventory-Manager\main.py (top-level), RelationInterface (top-level), RelationWidget (top-level), entry_helpers (top-level)

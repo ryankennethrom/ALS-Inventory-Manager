@@ -1,6 +1,5 @@
 ('C:\\Users\\unloc\\Github\\als-inventory-manager\\build\\main\\PYZ-00.pyz',
- [('DB', 'C:\\Users\\unloc\\Github\\als-inventory-manager\\DB.py', 'PYMODULE'),
-  ('PIL',
+ [('PIL',
    'C:\\Users\\unloc\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PIL\\__init__.py',
    'PYMODULE'),
   ('PIL.AvifImagePlugin',

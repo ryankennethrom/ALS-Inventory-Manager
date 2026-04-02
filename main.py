@@ -102,10 +102,9 @@ if __name__ == "__main__":
 
     DB.init_db(db_path, test=TEST_MODE)
 
-    with sqlite3.connect(db_path) as conn:
-        latest_deployed = DB.get_latest_app_version(conn)
-        if latest_deployed < VERSION:
-            DB.set_latest_app_version(conn, VERSION)
+    latest_deployed = DB.get_latest_app_version(db_path)
+    if latest_deployed < VERSION:
+        DB.set_latest_app_version(db_path, VERSION)
 
     def stop_if_instance_active():
         # Make sure one only one process exists
@@ -433,7 +432,7 @@ if __name__ == "__main__":
         canvas.bind("<Configure>", resize_inner_frame)
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
-    def quicklogs_content(notebook, root, db_conn):
+    def quicklogs_content(notebook, root, db_path):
         # -------------------- Main Window --------------------
         root.grid_rowconfigure(0, weight=1)
         root.grid_columnconfigure(0, weight=1)
@@ -527,7 +526,7 @@ if __name__ == "__main__":
         def populate_and_invoke_product_entry(event):
             root.config(cursor="watch")
             product_entry.delete(0, tk.END)
-            product_entry.insert(0, DB.get_product_name(db_conn, barcode_entry.get()))
+            product_entry.insert(0, DB.get_product_name(db_path, barcode_entry.get()))
             product_entry.focus_set()
             pyautogui.press("enter")
             root.config(cursor="")
@@ -570,7 +569,7 @@ if __name__ == "__main__":
 
             if answer:
                 root.config(cursor="watch")
-                result = run_with_error_handling(root, DB.set_barcode, db_conn, name, barcode)
+                result = run_with_error_handling(root, DB.set_barcode, db_path, name, barcode)
                 root.config(cursor="")
                 if result["status"].lower() == "ok":
                     messagebox.showinfo("Success", f"Barcode for '{name}' updated to '{barcode}'")
@@ -606,10 +605,10 @@ if __name__ == "__main__":
                 ("Receive", receive_cons),
             ]
 
-            if DB.is_cons_product_openable(db_conn, product_name):
+            if DB.is_cons_product_openable(db_path, product_name):
                 buttons.append(("Open", open_cons))
 
-            if DB.is_cons_product_finishable(db_conn, product_name):
+            if DB.is_cons_product_finishable(db_path, product_name):
                 buttons.append(("Finish", finish_cons))
 
             for label, cmd in buttons:
@@ -679,7 +678,7 @@ if __name__ == "__main__":
                     ("Receive", receive_non_cons),
                 ]
 
-                if DB.is_non_cons_product_openable(db_conn, product_entry.get()):
+                if DB.is_non_cons_product_openable(db_path, product_entry.get()):
                     buttons.append(("Open", open_non_cons))
 
                 for label, cmd in buttons:
@@ -711,7 +710,7 @@ if __name__ == "__main__":
         # registry.on_table_update(callback=lambda: build_available_cons_actions(product_entry.get(), barcode_entry.get()), parents={"Results"})
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
     
-    def nav(root, db_conn):
+    def nav(root, db_path):
 
         root.title("ALS Inventory Manager")
         root.geometry("1200x700")
@@ -739,11 +738,11 @@ if __name__ == "__main__":
         notebook.add(product_manager_tab, text="Products")
 
         # Initial load
-        cons_log_content(notebook, cons_log_tab)
-        non_cons_log_content(notebook, non_cons_log_tab)
-        analytics_content(notebook, analytics_tab)
-        product_manager_content(notebook, product_manager_tab)
-        quicklogs_content(notebook, quicklogs_tab, db_conn)
+        # cons_log_content(notebook, cons_log_tab)
+        # non_cons_log_content(notebook, non_cons_log_tab)
+        # analytics_content(notebook, analytics_tab)
+        # product_manager_content(notebook, product_manager_tab)
+        # quicklogs_content(notebook, quicklogs_tab, db_path)
 
         registry.refresh_all(exceptions=["Early"])
 
@@ -751,10 +750,7 @@ if __name__ == "__main__":
     root = tk.Tk()
     style = ttk.Style()
 
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL;")
-
-    run_with_error_handling(root, nav, root, conn)
+    run_with_error_handling(root, nav, root, db_path)
 
     def show_warning_if_app_outdated():
         if latest_deployed is not None and latest_deployed > VERSION:
@@ -773,4 +769,3 @@ if __name__ == "__main__":
     show_warning_if_app_outdated()
 
     root.mainloop()
-    conn.close()
