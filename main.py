@@ -98,7 +98,7 @@ if __name__ == "__main__":
     if TEST_MODE:
         db_path = "./inventory.db"
     else:
-        db_path = "Z:/InventoryAppData/inventory.db"
+        db_path = "./inventory.db"
 
     DB.init_db(db_path, test=TEST_MODE)
 
