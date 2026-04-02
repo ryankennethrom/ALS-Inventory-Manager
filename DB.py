@@ -1,6 +1,86 @@
 import sqlite3
 import os
 import re
+import os
+import configparser
+from pathlib import Path
+import tkinter as tk
+from tkinter import filedialog, messagebox
+
+APP_NAME = "InventoryApp"
+CONFIG_FILE = "config.ini"
+
+
+def get_config_path():
+    appdata = os.getenv("APPDATA")
+    config_dir = os.path.join(appdata, APP_NAME)
+    os.makedirs(config_dir, exist_ok=True)
+    return os.path.join(config_dir, CONFIG_FILE)
+
+
+def select_database_file():
+    root = tk.Tk()
+    root.withdraw()
+
+    messagebox.showinfo(
+        "Database Required",
+        "Please select the inventory database file."
+    )
+
+    file_path = filedialog.askopenfilename(
+        title="Select Inventory Database",
+        filetypes=[("SQLite Database", "*.db")]
+    )
+
+    root.destroy()
+    return file_path
+
+
+def get_db_path():
+    config_path = get_config_path()
+    config = configparser.ConfigParser()
+
+    # If config file does not exist
+    if not os.path.exists(config_path):
+        db_path = select_database_file()
+
+        if not db_path:
+            messagebox.showerror("Error", "Database file not selected.")
+            raise Exception("Database not selected")
+
+        config["Database"] = {"db_path": db_path}
+        with open(config_path, "w") as f:
+            config.write(f)
+
+        return db_path
+
+    # Read config
+    config.read(config_path)
+    db_path = config["Database"]["db_path"]
+
+    # If database file missing
+    if not os.path.exists(db_path):
+        root = tk.Tk()
+        root.withdraw()
+
+        messagebox.showwarning(
+            "Database Not Found",
+            "Database file could not be found. Please locate it."
+        )
+
+        new_db_path = select_database_file()
+
+        if not new_db_path:
+            messagebox.showerror("Error", "Database file not selected.")
+            raise Exception("Database not selected")
+
+        config["Database"]["db_path"] = new_db_path
+        with open(config_path, "w") as f:
+            config.write(f)
+
+        return new_db_path
+
+    return db_path
 
 def connect(db_path):
     conn = sqlite3.connect(db_path)
