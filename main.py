@@ -98,7 +98,7 @@ if __name__ == "__main__":
     if TEST_MODE:
         db_path = "./inventory.db"
     else:
-        db_path = "./inventory.db"
+        db_path = "G:/InventoryAppData/inventory.db"
 
     DB.init_db(db_path, test=TEST_MODE)
 
@@ -715,7 +715,7 @@ if __name__ == "__main__":
         root.title("ALS Inventory Manager")
         root.geometry("1200x700")
 
-         # NOTEBOOK in row 1 (below the warning)
+        # NOTEBOOK in row 1 (below the warning)
         notebook = ttk.Notebook(root)
         notebook.grid(row=1, column=2, sticky="nsew")  # fill space
 
@@ -738,11 +738,11 @@ if __name__ == "__main__":
         notebook.add(product_manager_tab, text="Products")
 
         # Initial load
-        # cons_log_content(notebook, cons_log_tab)
-        # non_cons_log_content(notebook, non_cons_log_tab)
-        # analytics_content(notebook, analytics_tab)
-        # product_manager_content(notebook, product_manager_tab)
-        # quicklogs_content(notebook, quicklogs_tab, db_path)
+        cons_log_content(notebook, cons_log_tab)
+        non_cons_log_content(notebook, non_cons_log_tab)
+        analytics_content(notebook, analytics_tab)
+        product_manager_content(notebook, product_manager_tab)
+        quicklogs_content(notebook, quicklogs_tab, db_path)
 
         registry.refresh_all(exceptions=["Early"])
 
