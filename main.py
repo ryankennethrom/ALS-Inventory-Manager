@@ -117,8 +117,8 @@ if True:
 
     latest_deployed = DB.get_latest_app_version(db_path)
     if latest_deployed < VERSION:
-        DB.set_latest_app_version(db_path, VERSION)
-
+        # DB.set_latest_app_version(db_path, VERSION)
+        pass
 
     root = tk.Tk()
     root.title("Hello")
