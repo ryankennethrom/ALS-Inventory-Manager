@@ -115,6 +115,11 @@ if True:
 
     DB.init_db(db_path, test=TEST_MODE)
 
+    latest_deployed = DB.get_latest_app_version(db_path)
+    if latest_deployed < VERSION:
+        DB.set_latest_app_version(db_path, VERSION)
+
+
     root = tk.Tk()
     root.title("Hello")
 
