@@ -81,8 +81,17 @@ def create_non_consumables_table(parent):
 
         return non_cons_widg, non_consumables
 
+if True:
+    root = tk.Tk()
+    root.title("Hello")
 
-if __name__ == "__main__":
+    label = tk.Label(root, text="Hello")
+    label.pack(padx=20, pady=20)
+
+    root.mainloop()
+
+# if __name__ == "__main__":
+if False:
     def stop_if_instance_active():
         # Make sure one only one process exists
         mutex_name = "ALS Inventory Manager"

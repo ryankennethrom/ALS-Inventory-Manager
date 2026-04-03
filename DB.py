@@ -510,36 +510,36 @@ def init_db(db_path, test=False):
     if test:
         cursor.execute(""" DROP VIEW IF EXISTS OutOfStock; """)
     
-        cursor.execute("""
-        CREATE VIEW IF NOT EXISTS OutOfStock AS
-        SELECT
-            p.ProductName,
-            COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0)
-                - COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
-            p.Station,
-            p.IsConsumable
-        FROM Products p
-        LEFT JOIN NonConsumableLogs l
-            ON p.ProductName = l.ProductName
-        WHERE p.IsConsumable = 'n'
-        GROUP BY p.ProductName
-        HAVING TotalQuantityAvailable <= 0
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS OutOfStock AS
+    SELECT
+        p.ProductName,
+        COALESCE(SUM(CASE WHEN l.ActionType = 'Received' THEN l.Quantity ELSE 0 END), 0)
+            - COALESCE(SUM(CASE WHEN l.ActionType = 'Opened' THEN l.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
+        p.Station,
+        p.IsConsumable
+    FROM Products p
+    LEFT JOIN NonConsumableLogs l
+        ON p.ProductName = l.ProductName
+    WHERE p.IsConsumable = 'n'
+    GROUP BY p.ProductName
+    HAVING TotalQuantityAvailable <= 0
 
-        UNION ALL
+    UNION ALL
 
-        SELECT
-            p.ProductName,
-            COALESCE(SUM(CASE WHEN l2.DateFinished = '' THEN l2.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
-            p.Station,
-            p.IsConsumable
-        FROM Products p
-        LEFT JOIN ConsumableLogs l2
-            ON p.ProductName = l2.ProductName
-        WHERE p.IsConsumable = 'y'
-        GROUP BY p.ProductName
-        HAVING TotalQuantityAvailable <= 0;
+    SELECT
+        p.ProductName,
+        COALESCE(SUM(CASE WHEN l2.DateFinished = '' THEN l2.Quantity ELSE 0 END), 0) AS TotalQuantityAvailable,
+        p.Station,
+        p.IsConsumable
+    FROM Products p
+    LEFT JOIN ConsumableLogs l2
+        ON p.ProductName = l2.ProductName
+    WHERE p.IsConsumable = 'y'
+    GROUP BY p.ProductName
+    HAVING TotalQuantityAvailable <= 0;
 
-        """)
+    """)
 
     conn.commit()
     conn.close()
