@@ -83,6 +83,20 @@ def create_non_consumables_table(parent):
 
 
 if __name__ == "__main__":
+    def stop_if_instance_active():
+        # Make sure one only one process exists
+        mutex_name = "ALS Inventory Manager"
+        kernel32 = ctypes.windll.kernel32
+        mutex = kernel32.CreateMutexW(None, False, mutex_name)
+        last_error = kernel32.GetLastError()
+        ERROR_ALREADY_EXISTS = 183
+
+        if last_error == ERROR_ALREADY_EXISTS:
+            print("Program is already running")
+            sys.exit(0)
+
+    stop_if_instance_active()
+
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
     parser.add_argument(
         "--test",
@@ -105,20 +119,6 @@ if __name__ == "__main__":
     latest_deployed = DB.get_latest_app_version(db_path)
     if latest_deployed < VERSION:
         DB.set_latest_app_version(db_path, VERSION)
-
-    def stop_if_instance_active():
-        # Make sure one only one process exists
-        mutex_name = "ALS Inventory Manager"
-        kernel32 = ctypes.windll.kernel32
-        mutex = kernel32.CreateMutexW(None, False, mutex_name)
-        last_error = kernel32.GetLastError()
-        ERROR_ALREADY_EXISTS = 183
-
-        if last_error == ERROR_ALREADY_EXISTS:
-            print("Program is already running")
-            sys.exit(0)
-
-    stop_if_instance_active()
 
     def non_cons_log_content(notebook, root):
         # -------------------- Main Window --------------------
