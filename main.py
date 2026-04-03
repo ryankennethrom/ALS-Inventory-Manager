@@ -82,6 +82,39 @@ def create_non_consumables_table(parent):
         return non_cons_widg, non_consumables
 
 if True:
+    def stop_if_instance_active():
+        # Make sure one only one process exists
+        mutex_name = "ALS Inventory Manager"
+        kernel32 = ctypes.windll.kernel32
+        mutex = kernel32.CreateMutexW(None, False, mutex_name)
+        last_error = kernel32.GetLastError()
+        ERROR_ALREADY_EXISTS = 183
+
+        if last_error == ERROR_ALREADY_EXISTS:
+            print("Program is already running")
+            sys.exit(0)
+
+    # stop_if_instance_active()
+
+    parser = argparse.ArgumentParser(description="ALS Inventory Manager")
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Run in test mode"
+    )
+    args = parser.parse_args()
+
+    VERSION = version
+    TEST_MODE = args.test
+    PROD_MODE = not TEST_MODE
+
+    if TEST_MODE:
+        db_path = "./inventory.db"
+    else:
+        db_path = DB.get_db_path()
+
+    DB.init_db(db_path, test=TEST_MODE)
+
     root = tk.Tk()
     root.title("Hello")
 
