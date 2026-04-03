@@ -95,7 +95,7 @@ if __name__ == "__main__":
             print("Program is already running")
             sys.exit(0)
 
-    stop_if_instance_active()
+    # stop_if_instance_active()
 
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
     parser.add_argument(
