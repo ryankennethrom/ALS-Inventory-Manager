@@ -13,7 +13,7 @@ from PIL import Image
 
 def scan_document_and_save(connect_timeout=10):
     """
-    Scans a document and returns the saved PDF file path.
+    Scans a document and returns the saved file path.
     Returns None if:
       - User cancels
       - Cannot connect to scanner within connect_timeout seconds
@@ -24,43 +24,54 @@ def scan_document_and_save(connect_timeout=10):
     scan_result = {"image": None}
 
     def choose_scanner_gui(devices):
-        """Simple GUI to select scanner with horizontal buttons"""
+        """Scanner selection GUI with horizontally aligned buttons."""
         win = tk.Toplevel()
         win.title("Select Scanner")
         win.geometry("400x300")
 
         selected_index = {"value": None}
 
+        # Title
         tk.Label(win, text="Select a scanner", font=("Arial", 14, "bold")).pack(pady=(10, 5))
 
         # Listbox + Scrollbar
         list_frame = tk.Frame(win)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
         scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL)
         listbox = tk.Listbox(list_frame, font=("Arial", 11), yscrollcommand=scrollbar.set, activestyle='dotbox')
         scrollbar.config(command=listbox.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        for index, name in devices:
+        for idx, name in devices:
             listbox.insert(tk.END, name)
 
+        # Instructions
         tk.Label(win, text="Double-click or click 'Select' to pick a scanner", font=("Arial", 10), fg="gray").pack(pady=(0, 5))
 
+        # Double-click selects scanner
         def on_double_click(event):
             sel = listbox.curselection()
             if sel:
-                selected_index["value"] = devices[sel[0]][0]  # original WIA index
+                selected_index["value"] = devices[sel[0]][0]
                 win.destroy()
 
         listbox.bind("<Double-Button-1>", on_double_click)
 
-        # Buttons horizontal
+        # Buttons frame at bottom (horizontal)
         btn_frame = tk.Frame(win)
         btn_frame.pack(pady=10)
-        select_btn = tk.Button(btn_frame, text="Select", width=12,
-                               command=lambda: (selected_index.update({"value": devices[listbox.curselection()[0]][0]}), win.destroy()))
+
+        select_btn = tk.Button(
+            btn_frame,
+            text="Select",
+            width=12,
+            command=lambda: (selected_index.update({"value": devices[listbox.curselection()[0]][0]}), win.destroy())
+        )
         cancel_btn = tk.Button(btn_frame, text="Cancel", width=12, command=win.destroy)
+
+        # Pack buttons horizontally
         select_btn.pack(side=tk.LEFT, padx=5, ipadx=5, ipady=5)
         cancel_btn.pack(side=tk.LEFT, padx=5, ipadx=5, ipady=5)
 
@@ -72,10 +83,12 @@ def scan_document_and_save(connect_timeout=10):
         pythoncom.CoInitialize()
         wia = win32com.client.Dispatch("WIA.DeviceManager")
 
-        # Enumerate scanners (keep original WIA index)
-        devices = [(i + 1, wia.DeviceInfos[i + 1].Properties("Name").Value)
-                   for i in range(wia.DeviceInfos.Count)
-                   if wia.DeviceInfos[i + 1].Type == 1]
+        # Enumerate scanners
+        devices = [
+            (i + 1, wia.DeviceInfos[i + 1].Properties("Name").Value)
+            for i in range(wia.DeviceInfos.Count)
+            if wia.DeviceInfos[i + 1].Type == 1
+        ]
 
         if not devices:
             messagebox.showerror("Error", "No scanners found.")
@@ -105,7 +118,7 @@ def scan_document_and_save(connect_timeout=10):
         scan_win.destroy()
 
         if device is None:
-            messagebox.showerror("Timeout", f"Could not connect to scanner within {connect_timeout} seconds.")
+            messagebox.showerror("Timeout", f"Could not connect to scanner within {connect_timeout} seconds. Please make sure no other program is using the scanner.")
             return None
 
         # Scan window
@@ -116,13 +129,10 @@ def scan_document_and_save(connect_timeout=10):
         scan_win.update()
 
         item = device.Items[1]
-
-        # Force scan format to PNG
-        item.Properties("FormatID").Value = "{B96B3CAB-0728-11D3-9D7B-0000F81EF32E}"  # PNG
         scan_result["image"] = item.Transfer()
         scan_win.destroy()
 
-        # Ask user where to save PDF
+        # after your scan:
         file_path = filedialog.asksaveasfilename(
             title="Save Scanned Document as PDF",
             defaultextension=".pdf",
@@ -131,17 +141,17 @@ def scan_document_and_save(connect_timeout=10):
         if not file_path:
             return None
 
-        # Save temporary PNG
+        # Save temporary PNG (WIA image)
         temp_png = file_path.replace(".pdf", "_temp.png")
         scan_result["image"].SaveFile(temp_png)
 
-        # Convert PNG -> PDF
+        # Convert PNG to PDF
         img = Image.open(temp_png)
         img.convert("RGB").save(file_path, "PDF")
 
         messagebox.showinfo("Success", f"Saved to:\n{file_path}")
         return file_path
-
+        
     except Exception as e:
         messagebox.showerror("Scan Error", str(e))
         return None
