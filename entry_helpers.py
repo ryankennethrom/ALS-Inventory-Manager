@@ -1,50 +1,142 @@
 from tkcalendar import DateEntry, Calendar
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 import pyautogui
 from rapidfuzz import fuzz, process
 import DB
 import subprocess
 import os
 import win32com.client
+import pythoncom
+import time
 
+def scan_document_and_save(connect_timeout=10):
+    """
+    Scans a document and returns the saved file path.
+    Returns None if:
+      - User cancels
+      - Cannot connect to scanner within connect_timeout seconds
+    """
 
-def scan_document_and_save():
-    # Initialize Tkinter (hidden root)
     root = tk.Tk()
-    root.withdraw()
+    root.withdraw()  # Hide main window
+    scan_result = {"image": None}
+
+    def choose_scanner_gui(devices):
+        """Scanner selection GUI with horizontal aligned buttons."""
+        win = tk.Toplevel()
+        win.title("Select Scanner")
+        win.geometry("400x300")
+        # win.resizable(False, False)
+
+        selected_index = {"value": None}
+
+        # Title
+        tk.Label(win, text="Select a scanner", font=("Arial", 14, "bold")).pack(pady=(10, 5))
+
+        # Listbox + Scrollbar
+        list_frame = tk.Frame(win)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL)
+        listbox = tk.Listbox(list_frame, font=("Arial", 11), yscrollcommand=scrollbar.set, activestyle='dotbox')
+        scrollbar.config(command=listbox.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        for idx, name in devices:
+            listbox.insert(tk.END, name)
+
+        # Instructions
+        tk.Label(win, text="Double-click or click 'Select' to pick a scanner", font=("Arial", 10), fg="gray").pack(pady=(0, 5))
+
+        # Double-click selects scanner
+        def on_double_click(event):
+            sel = listbox.curselection()
+            if sel:
+                selected_index["value"] = devices[sel[0]][0]
+                win.destroy()
+
+        listbox.bind("<Double-Button-1>", on_double_click)
+
+        # Buttons frame at bottom (horizontal)
+        btn_frame = tk.Frame(win)
+        btn_frame.pack(pady=10)
+
+        select_btn = tk.Button(btn_frame, text="Select", width=12,
+                               command=lambda: (selected_index.update({"value": devices[listbox.curselection()[0]][0]}), win.destroy()))
+        cancel_btn = tk.Button(btn_frame, text="Cancel", width=12, command=win.destroy)
+
+        # Pack buttons horizontally with equal height
+        select_btn.pack(side=tk.LEFT, padx=5, ipadx=5, ipady=5)
+        cancel_btn.pack(side=tk.LEFT, padx=5, ipadx=5, ipady=5)
+
+        win.grab_set()
+        win.wait_window()
+        return selected_index["value"]
 
     try:
-        # Connect to Windows Image Acquisition (WIA)
-        wia = win32com.client.Dispatch("WIA.CommonDialog")
+        pythoncom.CoInitialize()
+        wia = win32com.client.Dispatch("WIA.DeviceManager")
 
-        # Show scanner dialog
-        image = wia.ShowAcquireImage()
+        # Enumerate scanners
+        devices = [(i + 1, wia.DeviceInfos[i + 1].Properties("Name").Value)
+                   for i in range(wia.DeviceInfos.Count)
+                   if wia.DeviceInfos[i + 1].Type == 1]
 
-        if image is None:
-            messagebox.showerror("Error", "No image scanned.")
+        if not devices:
+            messagebox.showerror("Error", "No scanners found.")
             return None
 
-        # Ask user where to save
+        selected = choose_scanner_gui(devices)
+        if selected is None:
+            return None
+
+        # Timeout while connecting
+        start_time = time.time()
+        device = None
+        scan_win = tk.Toplevel()
+        scan_win.title("Connecting to Scanner")
+        scan_win.geometry("300x80")
+        tk.Label(scan_win, text="Connecting to scanner...", font=("Arial", 11)).pack(pady=20)
+        scan_win.update()
+
+        while time.time() - start_time < connect_timeout:
+            try:
+                device = wia.DeviceInfos[selected].Connect()
+                break
+            except Exception:
+                scan_win.update()
+                time.sleep(0.1)
+
+        scan_win.destroy()
+
+        if device is None:
+            messagebox.showerror("Timeout", f"Could not connect to scanner within {connect_timeout} seconds.")
+            return None
+
+        # Scan window
+        scan_win = tk.Toplevel()
+        scan_win.title("Scanning")
+        scan_win.geometry("300x80")
+        tk.Label(scan_win, text="Scanning, please wait...", font=("Arial", 11)).pack(pady=20)
+        scan_win.update()
+
+        item = device.Items[1]
+        scan_result["image"] = item.Transfer()
+        scan_win.destroy()
+
+        # Save dialog
         file_path = filedialog.asksaveasfilename(
             title="Save Scanned Document",
             defaultextension=".jpg",
-            filetypes=[
-                ("JPEG", "*.jpg"),
-                ("PNG", "*.png"),
-                ("All Files", "*.*")
-            ]
+            filetypes=[("JPEG", "*.jpg"), ("PNG", "*.png")]
         )
-
         if not file_path:
-            messagebox.showerror("Error", "No save location selected.")
             return None
 
-        # Save the image
-        image.SaveFile(file_path)
-
-        messagebox.showinfo("Success", f"File saved to:\n{file_path}")
-
+        scan_result["image"].SaveFile(file_path)
+        messagebox.showinfo("Success", f"Saved to:\n{file_path}")
         return file_path
 
     except Exception as e:
@@ -52,13 +144,14 @@ def scan_document_and_save():
         return None
 
     finally:
+        pythoncom.CoUninitialize()
         root.destroy()
+
 
 def open_file(path):
     subprocess.Popen(["start", "", path], shell=True)
 
-def attach_datepicker(entry):
-    
+def attach_datepicker(entry):    
     calendar_window = None
     focus_in_id = None
     button_down_id = None
@@ -391,8 +484,8 @@ def attach_filepath_manager(entry):
 
         scrollbar.config(command=listbox.yview)
         # ----------------------------------------------------------
-        MAX_VISIBLE = 2
-        MIN_VISIBLE = 2
+        MAX_VISIBLE = 3
+        MIN_VISIBLE = 3
         def update_list(event=None):
             if not dropdown or not dropdown.winfo_exists():
                 return
