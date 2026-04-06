@@ -820,9 +820,13 @@ def is_cons_product_finishable(db_path, name):
     return cursor.fetchone() is not None
 
 def get_latest_app_version(db_path) -> int:
-    with sqlite3.connect(db_path) as conn:   
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
         cursor = conn.execute("""
             SELECT Version FROM AppVersion WHERE OnlyRow = 1
         """)
         row = cursor.fetchone()
-    return row[0] if row else 1  # default fallback
+    finally:
+        conn.close()
+        return row[0] if row else 1
+    return 1
