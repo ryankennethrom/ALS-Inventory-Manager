@@ -127,7 +127,7 @@ if False:
 
     root.mainloop()
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 # if True:
     def stop_if_instance_active():
         # Make sure one only one process exists
