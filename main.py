@@ -81,7 +81,7 @@ def create_non_consumables_table(parent):
 
         return non_cons_widg, non_consumables
 
-if True:
+if False:
     def stop_if_instance_active():
         # Make sure one only one process exists
         mutex_name = "ALS Inventory Manager"
@@ -128,7 +128,7 @@ if True:
     root.mainloop()
 
 # if __name__ == "__main__":
-if False:
+# if True:
     def stop_if_instance_active():
         # Make sure one only one process exists
         mutex_name = "ALS Inventory Manager"
@@ -796,7 +796,7 @@ if False:
     root = tk.Tk()
     style = ttk.Style()
 
-    run_with_error_handling(root, nav, root, db_path)
+    # run_with_error_handling(root, nav, root, db_path)
 
     def show_warning_if_app_outdated():
         if latest_deployed is not None and latest_deployed > VERSION:
