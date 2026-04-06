@@ -9,10 +9,11 @@ import os
 import win32com.client
 import pythoncom
 import time
+from PIL import Image
 
 def scan_document_and_save(connect_timeout=10):
     """
-    Scans a document and returns the saved file path.
+    Scans a document and returns the saved PDF file path.
     Returns None if:
       - User cancels
       - Cannot connect to scanner within connect_timeout seconds
@@ -27,17 +28,13 @@ def scan_document_and_save(connect_timeout=10):
         win = tk.Toplevel()
         win.title("Select Scanner")
         win.geometry("400x300")
-        # win.resizable(False, False)
-
         selected_index = {"value": None}
 
-        # Title
         tk.Label(win, text="Select a scanner", font=("Arial", 14, "bold")).pack(pady=(10, 5))
 
         # Listbox + Scrollbar
         list_frame = tk.Frame(win)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-
         scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL)
         listbox = tk.Listbox(list_frame, font=("Arial", 11), yscrollcommand=scrollbar.set, activestyle='dotbox')
         scrollbar.config(command=listbox.yview)
@@ -47,10 +44,8 @@ def scan_document_and_save(connect_timeout=10):
         for idx, name in devices:
             listbox.insert(tk.END, name)
 
-        # Instructions
         tk.Label(win, text="Double-click or click 'Select' to pick a scanner", font=("Arial", 10), fg="gray").pack(pady=(0, 5))
 
-        # Double-click selects scanner
         def on_double_click(event):
             sel = listbox.curselection()
             if sel:
@@ -59,15 +54,12 @@ def scan_document_and_save(connect_timeout=10):
 
         listbox.bind("<Double-Button-1>", on_double_click)
 
-        # Buttons frame at bottom (horizontal)
+        # Buttons
         btn_frame = tk.Frame(win)
         btn_frame.pack(pady=10)
-
         select_btn = tk.Button(btn_frame, text="Select", width=12,
                                command=lambda: (selected_index.update({"value": devices[listbox.curselection()[0]][0]}), win.destroy()))
         cancel_btn = tk.Button(btn_frame, text="Cancel", width=12, command=win.destroy)
-
-        # Pack buttons horizontally with equal height
         select_btn.pack(side=tk.LEFT, padx=5, ipadx=5, ipady=5)
         cancel_btn.pack(side=tk.LEFT, padx=5, ipadx=5, ipady=5)
 
@@ -112,7 +104,7 @@ def scan_document_and_save(connect_timeout=10):
         scan_win.destroy()
 
         if device is None:
-            messagebox.showerror("Timeout", f"Could not connect to scanner within {connect_timeout} seconds.")
+            messagebox.showerror("Timeout", f"Could not connect to scanner within {connect_timeout} seconds. Please make sure no other program is using the scanner.")
             return None
 
         # Scan window
@@ -123,19 +115,29 @@ def scan_document_and_save(connect_timeout=10):
         scan_win.update()
 
         item = device.Items[1]
+
+        # Set scan format to PNG
+        item.Properties("FormatID").Value = "{B96B3CAB-0728-11D3-9D7B-0000F81EF32E}"  # PNG
         scan_result["image"] = item.Transfer()
         scan_win.destroy()
 
-        # Save dialog
+        # Ask user where to save PDF
         file_path = filedialog.asksaveasfilename(
-            title="Save Scanned Document",
-            defaultextension=".jpg",
-            filetypes=[("JPEG", "*.jpg"), ("PNG", "*.png")]
+            title="Save Scanned Document as PDF",
+            defaultextension=".pdf",
+            filetypes=[("PDF", "*.pdf")]
         )
         if not file_path:
             return None
 
-        scan_result["image"].SaveFile(file_path)
+        # Save scan as temporary PNG
+        temp_png = file_path.replace(".pdf", "_temp.png")
+        scan_result["image"].SaveFile(temp_png)
+
+        # Convert PNG → PDF
+        img = Image.open(temp_png)
+        img.convert("RGB").save(file_path, "PDF")
+
         messagebox.showinfo("Success", f"Saved to:\n{file_path}")
         return file_path
 
@@ -146,7 +148,6 @@ def scan_document_and_save(connect_timeout=10):
     finally:
         pythoncom.CoUninitialize()
         root.destroy()
-
 
 def open_file(path):
     subprocess.Popen(["start", "", path], shell=True)
