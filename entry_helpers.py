@@ -24,11 +24,12 @@ def scan_document_and_save(connect_timeout=10):
     scan_result = {"image": None}
 
     def choose_scanner_gui(devices):
-        """Scanner selection GUI with horizontal aligned buttons."""
+        """Simple GUI to select scanner with horizontal buttons"""
         win = tk.Toplevel()
         win.title("Select Scanner")
         win.geometry("400x300")
-        selected_device = {"value": None}
+
+        selected_index = {"value": None}
 
         tk.Label(win, text="Select a scanner", font=("Arial", 14, "bold")).pack(pady=(10, 5))
 
@@ -41,7 +42,7 @@ def scan_document_and_save(connect_timeout=10):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        for device_obj, name in devices:
+        for index, name in devices:
             listbox.insert(tk.END, name)
 
         tk.Label(win, text="Double-click or click 'Select' to pick a scanner", font=("Arial", 10), fg="gray").pack(pady=(0, 5))
@@ -49,39 +50,39 @@ def scan_document_and_save(connect_timeout=10):
         def on_double_click(event):
             sel = listbox.curselection()
             if sel:
-                selected_device["value"] = devices[sel[0]][0]  # store DeviceInfos object
+                selected_index["value"] = devices[sel[0]][0]  # original WIA index
                 win.destroy()
 
         listbox.bind("<Double-Button-1>", on_double_click)
 
-        # Buttons
+        # Buttons horizontal
         btn_frame = tk.Frame(win)
         btn_frame.pack(pady=10)
         select_btn = tk.Button(btn_frame, text="Select", width=12,
-                               command=lambda: (selected_device.update({"value": devices[listbox.curselection()[0]][0]}), win.destroy()))
+                               command=lambda: (selected_index.update({"value": devices[listbox.curselection()[0]][0]}), win.destroy()))
         cancel_btn = tk.Button(btn_frame, text="Cancel", width=12, command=win.destroy)
         select_btn.pack(side=tk.LEFT, padx=5, ipadx=5, ipady=5)
         cancel_btn.pack(side=tk.LEFT, padx=5, ipadx=5, ipady=5)
 
         win.grab_set()
         win.wait_window()
-        return selected_device["value"]
+        return selected_index["value"]
 
     try:
         pythoncom.CoInitialize()
         wia = win32com.client.Dispatch("WIA.DeviceManager")
 
-        # Enumerate scanners as DeviceInfos objects
-        devices = [(wia.DeviceInfos[i+1], wia.DeviceInfos[i+1].Properties("Name").Value)
+        # Enumerate scanners (keep original WIA index)
+        devices = [(i + 1, wia.DeviceInfos[i + 1].Properties("Name").Value)
                    for i in range(wia.DeviceInfos.Count)
-                   if wia.DeviceInfos[i+1].Type == 1]
+                   if wia.DeviceInfos[i + 1].Type == 1]
 
         if not devices:
             messagebox.showerror("Error", "No scanners found.")
             return None
 
-        selected_device_info = choose_scanner_gui(devices)
-        if selected_device_info is None:
+        selected = choose_scanner_gui(devices)
+        if selected is None:
             return None
 
         # Timeout while connecting
@@ -95,7 +96,7 @@ def scan_document_and_save(connect_timeout=10):
 
         while time.time() - start_time < connect_timeout:
             try:
-                device = selected_device_info.Connect()
+                device = wia.DeviceInfos[selected].Connect()
                 break
             except Exception:
                 scan_win.update()
@@ -116,7 +117,7 @@ def scan_document_and_save(connect_timeout=10):
 
         item = device.Items[1]
 
-        # Set scan format to PNG
+        # Force scan format to PNG
         item.Properties("FormatID").Value = "{B96B3CAB-0728-11D3-9D7B-0000F81EF32E}"  # PNG
         scan_result["image"] = item.Transfer()
         scan_win.destroy()
@@ -130,11 +131,11 @@ def scan_document_and_save(connect_timeout=10):
         if not file_path:
             return None
 
-        # Save scan as temporary PNG
+        # Save temporary PNG
         temp_png = file_path.replace(".pdf", "_temp.png")
         scan_result["image"].SaveFile(temp_png)
 
-        # Convert PNG → PDF
+        # Convert PNG -> PDF
         img = Image.open(temp_png)
         img.convert("RGB").save(file_path, "PDF")
 
