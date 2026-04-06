@@ -28,7 +28,7 @@ def scan_document_and_save(connect_timeout=10):
         win = tk.Toplevel()
         win.title("Select Scanner")
         win.geometry("400x300")
-        selected_index = {"value": None}
+        selected_device = {"value": None}
 
         tk.Label(win, text="Select a scanner", font=("Arial", 14, "bold")).pack(pady=(10, 5))
 
@@ -41,7 +41,7 @@ def scan_document_and_save(connect_timeout=10):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        for idx, name in devices:
+        for device_obj, name in devices:
             listbox.insert(tk.END, name)
 
         tk.Label(win, text="Double-click or click 'Select' to pick a scanner", font=("Arial", 10), fg="gray").pack(pady=(0, 5))
@@ -49,7 +49,7 @@ def scan_document_and_save(connect_timeout=10):
         def on_double_click(event):
             sel = listbox.curselection()
             if sel:
-                selected_index["value"] = devices[sel[0]][0]
+                selected_device["value"] = devices[sel[0]][0]  # store DeviceInfos object
                 win.destroy()
 
         listbox.bind("<Double-Button-1>", on_double_click)
@@ -58,30 +58,30 @@ def scan_document_and_save(connect_timeout=10):
         btn_frame = tk.Frame(win)
         btn_frame.pack(pady=10)
         select_btn = tk.Button(btn_frame, text="Select", width=12,
-                               command=lambda: (selected_index.update({"value": devices[listbox.curselection()[0]][0]}), win.destroy()))
+                               command=lambda: (selected_device.update({"value": devices[listbox.curselection()[0]][0]}), win.destroy()))
         cancel_btn = tk.Button(btn_frame, text="Cancel", width=12, command=win.destroy)
         select_btn.pack(side=tk.LEFT, padx=5, ipadx=5, ipady=5)
         cancel_btn.pack(side=tk.LEFT, padx=5, ipadx=5, ipady=5)
 
         win.grab_set()
         win.wait_window()
-        return selected_index["value"]
+        return selected_device["value"]
 
     try:
         pythoncom.CoInitialize()
         wia = win32com.client.Dispatch("WIA.DeviceManager")
 
-        # Enumerate scanners
-        devices = [(i + 1, wia.DeviceInfos[i + 1].Properties("Name").Value)
+        # Enumerate scanners as DeviceInfos objects
+        devices = [(wia.DeviceInfos[i+1], wia.DeviceInfos[i+1].Properties("Name").Value)
                    for i in range(wia.DeviceInfos.Count)
-                   if wia.DeviceInfos[i + 1].Type == 1]
+                   if wia.DeviceInfos[i+1].Type == 1]
 
         if not devices:
             messagebox.showerror("Error", "No scanners found.")
             return None
 
-        selected = choose_scanner_gui(devices)
-        if selected is None:
+        selected_device_info = choose_scanner_gui(devices)
+        if selected_device_info is None:
             return None
 
         # Timeout while connecting
@@ -95,7 +95,7 @@ def scan_document_and_save(connect_timeout=10):
 
         while time.time() - start_time < connect_timeout:
             try:
-                device = wia.DeviceInfos[selected].Connect()
+                device = selected_device_info.Connect()
                 break
             except Exception:
                 scan_win.update()
@@ -104,7 +104,7 @@ def scan_document_and_save(connect_timeout=10):
         scan_win.destroy()
 
         if device is None:
-            messagebox.showerror("Timeout", f"Could not connect to scanner within {connect_timeout} seconds. Please make sure no other program is using the scanner.")
+            messagebox.showerror("Timeout", f"Could not connect to scanner within {connect_timeout} seconds.")
             return None
 
         # Scan window
