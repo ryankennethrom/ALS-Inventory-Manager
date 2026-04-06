@@ -707,13 +707,23 @@ def get_stations(db_path):
             return []
 
 def set_latest_app_version(db_path, version: int):
-    with sqlite3.connect(db_path) as conn:
+    conn = sqlite3.connect(db_path, timeout=30)
+    try:
+        # Important for shared drives
+        conn.execute("PRAGMA journal_mode=DELETE;")
+        conn.execute("PRAGMA busy_timeout = 30000;")
+        conn.execute("PRAGMA synchronous = NORMAL;")
+
         conn.execute("""
             INSERT INTO AppVersion (OnlyRow, Version)
             VALUES (1, ?)
             ON CONFLICT(OnlyRow)
             DO UPDATE SET Version = excluded.Version;
         """, (version,))
+
+        conn.commit()   # Explicit commit
+    finally:
+        conn.close()    # Explicit close
 
 def is_product_consumable(db_path, name):
     with sqlite3.connect(db_path) as conn:

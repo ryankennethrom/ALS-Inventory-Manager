@@ -81,7 +81,7 @@ def create_non_consumables_table(parent):
 
         return non_cons_widg, non_consumables
 
-if False:
+if True:
     def stop_if_instance_active():
         # Make sure one only one process exists
         mutex_name = "ALS Inventory Manager"
@@ -94,7 +94,7 @@ if False:
             print("Program is already running")
             sys.exit(0)
 
-    # stop_if_instance_active()
+    stop_if_instance_active()
 
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
     parser.add_argument(
@@ -117,8 +117,7 @@ if False:
 
     latest_deployed = DB.get_latest_app_version(db_path)
     if latest_deployed < VERSION:
-        # DB.set_latest_app_version(db_path, VERSION)
-        pass
+        DB.set_latest_app_version(db_path, VERSION)
 
     root = tk.Tk()
     root.title("Hello")
@@ -128,7 +127,8 @@ if False:
 
     root.mainloop()
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
+if False:
     def stop_if_instance_active():
         # Make sure one only one process exists
         mutex_name = "ALS Inventory Manager"
@@ -141,7 +141,7 @@ if __name__ == "__main__":
             print("Program is already running")
             sys.exit(0)
 
-    # stop_if_instance_active()
+    stop_if_instance_active()
 
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
     parser.add_argument(
