@@ -796,7 +796,7 @@ if False:
     root = tk.Tk()
     style = ttk.Style()
 
-    # run_with_error_handling(root, nav, root, db_path)
+    run_with_error_handling(root, nav, root, db_path)
 
     def show_warning_if_app_outdated():
         if latest_deployed is not None and latest_deployed > VERSION:
