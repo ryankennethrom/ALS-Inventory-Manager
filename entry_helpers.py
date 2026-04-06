@@ -1,11 +1,58 @@
 from tkcalendar import DateEntry, Calendar
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 import pyautogui
 from rapidfuzz import fuzz, process
 import DB
 import subprocess
 import os
+import win32com.client
+
+
+def scan_document_and_save():
+    # Initialize Tkinter (hidden root)
+    root = tk.Tk()
+    root.withdraw()
+
+    try:
+        # Connect to Windows Image Acquisition (WIA)
+        wia = win32com.client.Dispatch("WIA.CommonDialog")
+
+        # Show scanner dialog
+        image = wia.ShowAcquireImage()
+
+        if image is None:
+            messagebox.showerror("Error", "No image scanned.")
+            return None
+
+        # Ask user where to save
+        file_path = filedialog.asksaveasfilename(
+            title="Save Scanned Document",
+            defaultextension=".jpg",
+            filetypes=[
+                ("JPEG", "*.jpg"),
+                ("PNG", "*.png"),
+                ("All Files", "*.*")
+            ]
+        )
+
+        if not file_path:
+            messagebox.showerror("Error", "No save location selected.")
+            return None
+
+        # Save the image
+        image.SaveFile(file_path)
+
+        messagebox.showinfo("Success", f"File saved to:\n{file_path}")
+
+        return file_path
+
+    except Exception as e:
+        messagebox.showerror("Scan Error", str(e))
+        return None
+
+    finally:
+        root.destroy()
 
 def open_file(path):
     subprocess.Popen(["start", "", path], shell=True)
@@ -352,7 +399,7 @@ def attach_filepath_manager(entry):
             dropdown.lift()
             listbox.delete(0, tk.END)
 
-            items = ["Select a file", "Open this file"]
+            items = ["Select a file", "Open file", "Scan file"]
             for item in items:
                 listbox.insert(tk.END, item)
 
@@ -374,8 +421,12 @@ def attach_filepath_manager(entry):
                     )
                     entry.delete(0, tk.END)
                     entry.insert(0, file_path)
-                elif value == "Open this file":
+                elif value == "Open file":
                     open_file(str(entry.get()))
+                elif value == "Scan file":
+                    file_path = scan_document_and_save()
+                    entry.delete(0, tk.END)
+                    entry.insert(0, file_path)
                 else:
                     raise Exception("File Path entry helper doesn't recognize a user's input")
                 entry.focus_set()

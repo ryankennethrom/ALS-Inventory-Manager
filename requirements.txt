@@ -5,3 +5,4 @@ tkcalendar
 pyautogui
 rapidfuzz
 pillow
+pywin32

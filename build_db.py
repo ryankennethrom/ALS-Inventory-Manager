@@ -259,7 +259,7 @@ if __name__ == "__main__":
     prod_quant["Initials"] = "RR"
     prod_quant["ActionType"] = "Received"
     prod_quant["Date"] = "1998-01-01"
-    prod_quant["PONumber"] = ""
+    prod_quant["PONumber"] = "Not Set"
 
     na_rows = prod_quant[prod_quant['Quantity'].isna()]
     

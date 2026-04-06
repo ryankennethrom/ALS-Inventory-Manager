@@ -212,9 +212,7 @@ def init_db(db_path, test=False):
                 CHECK (
                     ActionType IN ('Received', 'Opened')
                 ),
-
-            PONumber TEXT NOT NULL,
-
+            PONumber TEXT NOT NULL CHECK (ActionType = 'Opened' OR PONumber != ''),
             FOREIGN KEY (ProductName)
                 REFERENCES Products(ProductName)
                 ON DELETE RESTRICT
