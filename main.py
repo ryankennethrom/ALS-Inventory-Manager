@@ -81,7 +81,7 @@ def create_non_consumables_table(parent):
 
         return non_cons_widg, non_consumables
 
-if True:
+if False:
     def stop_if_instance_active():
         # Make sure one only one process exists
         mutex_name = "ALS Inventory Manager"
@@ -128,8 +128,7 @@ if True:
 
     root.mainloop()
 
-# if __name__ == "__main__":
-if False:
+if __name__ == "__main__":
     def stop_if_instance_active():
         # Make sure one only one process exists
         mutex_name = "ALS Inventory Manager"
