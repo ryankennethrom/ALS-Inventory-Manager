@@ -16,6 +16,7 @@ from tkinter import filedialog, messagebox
 import uuid
 import registry
 from datetime import date
+from openpyxl import load_workbook
 
 def generate_code(length=5):
     chars = string.ascii_uppercase + string.digits
@@ -254,7 +255,7 @@ class RelationWidget(ttk.LabelFrame):
         center_popup()
         self.winfo_toplevel().bind("<Configure>", center_popup)
     
-    def export_results(self):
+    def export_results(self, with_preface=False, preface_size=10):
         def _export():
             def ask_exclude_fields():
 
@@ -367,8 +368,54 @@ class RelationWidget(ttk.LabelFrame):
 
             self.relation.export_as_excel(
                 exclude_columns=exclude_fields,
-                output_path=output_path
+                output_path=output_path,
+                leading_empty_rows=preface_size
             )
+
+            if with_preface:
+                try:
+                    template_wb = load_workbook("template.xlsm")
+                    template_ws = template_wb.active
+
+                    output_wb = load_workbook(output_path)
+                    output_ws = output_wb.active
+
+                    # Insert rows at top
+                    output_ws.insert_rows(1, amount=preface_size)
+
+                    # Copy rows with full formatting
+                    for row in template_ws.iter_rows(min_row=1, max_row=preface_size):
+                        for cell in row:
+                            new_cell = output_ws.cell(row=cell.row, column=cell.column)
+
+                            # Copy value
+                            new_cell.value = cell.value
+
+                            if cell.has_style:
+                                new_cell.font = copy.copy(cell.font)
+                                new_cell.border = copy.copy(cell.border)
+                                new_cell.fill = copy.copy(cell.fill)
+                                new_cell.number_format = copy.copy(cell.number_format)
+                                new_cell.protection = copy.copy(cell.protection)
+                                new_cell.alignment = copy.copy(cell.alignment)
+
+                    # Copy column widths
+                    for col_letter, dim in template_ws.column_dimensions.items():
+                        output_ws.column_dimensions[col_letter].width = dim.width
+
+                    # Copy row heights
+                    for i in range(1, preface_size+1):
+                        if template_ws.row_dimensions[i].height:
+                            output_ws.row_dimensions[i].height = template_ws.row_dimensions[i].height
+
+                    # Copy merged cells
+                    for merged_range in template_ws.merged_cells.ranges:
+                        output_ws.merge_cells(str(merged_range))
+
+                    output_wb.save(output_path)
+
+                except Exception as e:
+                    print("Template formatting failed:", e)
 
         run_with_error_handling(self, _export)
 

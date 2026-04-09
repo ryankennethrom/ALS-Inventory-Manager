@@ -210,7 +210,7 @@ class RelationInterface:
         self.after_search_clicked()
         return self.curr_results
     
-    def export_as_excel(self, exclude_columns=None, output_path="output.xlsx"):
+    def export_as_excel(self, exclude_columns=None, output_path="output.xlsx", leading_empty_rows=10):
         if Path(output_path).exists():
             os.remove(output_path)
 
@@ -230,7 +230,7 @@ class RelationInterface:
         df = df.drop(columns=exclude_columns, errors="ignore")
 
         # ---- Write starting at row 8 (7 empty rows above) ----
-        start_row = 7
+        start_row = leading_empty_rows + 1
         df.to_excel(output_path, index=False, startrow=start_row)
 
         wb = load_workbook(output_path)

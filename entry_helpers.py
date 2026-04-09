@@ -27,7 +27,7 @@ def scan_document_and_save(connect_timeout=10):
         """Scanner selection GUI with horizontally aligned buttons."""
         win = tk.Toplevel()
         win.title("Select Scanner")
-        win.geometry("400x300")
+        win.geometry("400x400")
 
         selected_index = {"value": None}
 
