@@ -156,10 +156,14 @@ if __name__ == "__main__":
     PROD_MODE = not TEST_MODE
 
     if TEST_MODE:
-        db_path = "./inventory.db"
+        db_path = "./data.db"
     else:
-        db_path = "./inventory.db"
-        # db_path = DB.get_db_path()
+        default_path = "./data.db"
+
+        if os.path.exists(default_path):
+            db_path = default_path
+        else:
+            db_path = DB.get_db_path()
 
     DB.init_db(db_path, test=TEST_MODE)
 

@@ -115,7 +115,7 @@ def deduplicate(df, col_name="ProductName"):
     return df_deduped
 
 if __name__ == "__main__":
-    db_path = "./inventory.db"
+    db_path = "./data.db"
     DB.delete_db(db_path)
     DB.init_db(db_path)
 
