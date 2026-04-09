@@ -156,7 +156,7 @@ if __name__ == "__main__":
     PROD_MODE = not TEST_MODE
 
     if TEST_MODE:
-        db_path = "./data.db"
+        db_path = "./dist/data.db"
     else:
         default_path = "./data.db"
 
