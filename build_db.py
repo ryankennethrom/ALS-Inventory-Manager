@@ -141,7 +141,11 @@ if __name__ == "__main__":
 
     merged["Price"] = merged["Price I"].fillna(merged["Price PM"])
     merged["ProductName"] = merged["ProductName_x"].fillna(merged["ProductName_y"])
-    merged["Barcode"] = np.random.randint(0, 10000000, size=len(merged))
+    merged["Barcode"] = "NOTYETSET" + (
+        pd.Series(np.random.randint(0, 10000000, size=len(merged)))
+        .astype(str)
+        .str.zfill(7)
+    )
     merged["AlsItemNumber"] = merged["AlsItemNumber_x"].fillna(merged["AlsItemNumber_y"])
     merged["VendorItemNumber"] = merged["VendorItemNumber_x"].fillna(merged["VendorItemNumber_y"])
     
