@@ -181,8 +181,8 @@ if __name__ == "__main__":
 
     id_df['AlsItemNumber'] = id_df['AlsItemNumber'].fillna(0)
     id_df['VendorNumber'] = ""
-    id_df['CertifiedValue'] = ""
-    id_df['CertificationDate'] = ""
+    id_df['CertifiedValue'] = "Not Set"
+    id_df['CertificationDate'] = "Not Set"
     id_df['VendorItemNumber'] = id_df['VendorItemNumber'].fillna("")
     id_df['PONumber'] = id_df['PONumber'].fillna("Not Set")
     id_df['DateReceived'] = id_df['DateReceived'].dt.strftime('%Y-%m-%d')

@@ -117,12 +117,12 @@ def init_db(db_path, test=False):
         CREATE TABLE IF NOT EXISTS ConsumableLogs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ProductName TEXT NOT NULL,
-            CertifiedValue TEXT NOT NULL,
+            CertifiedValue TEXT NOT NULL CHECK (CertifiedValue != ''),
             CertificationDate TEXT NOT NULL
                 CHECK (
                     (CertificationDate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
                     AND CertificationDate = date(CertificationDate))
-                    OR CertificationDate = ''
+                    OR CertificationDate = 'Not Set'
                 ),
             LOT TEXT NOT NULL CHECK (LOT != ''),
             CoaFilePath TEXT NOT NULL CHECK (CoaFilePath != ''),
