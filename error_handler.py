@@ -63,7 +63,16 @@ def humanize_error(e: Exception) -> tuple[str, str]:
 
     elif "LowSupplyCount >= EmergencyCount" in msg:
         out["Short"]="LowSupplyCount must be greater than or equal to EmergencyCount"
-    
+
+    elif "CHECK constraint failed: (CertificationDate" in msg:
+        out["Short"]="Invalid CertificationDate"
+
+    elif "CHECK constraint failed: CoaFilePath" in msg:
+        out["Short"]="Invalid CoaFilePath"
+
+    elif "UNIQUE constraint failed: Products.BarcodeContains" in msg:
+        out["Short"]="Pattern already in use"
+
     return (out["Short"],out["Details"])
 
 def run_with_error_handling(master, func, *args, **kwargs):

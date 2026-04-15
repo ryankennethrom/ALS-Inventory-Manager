@@ -480,6 +480,7 @@ class RelationWidget(ttk.LabelFrame):
 
             # ---------------- DATE ----------------
             elif "DATE" in col_type:
+                entry = ttk.Entry(frame, width=25)
                 pred = ttk.Combobox(frame, values=date_predicates, state="readonly", width=18)
                 pred.set(date_predicates[-1])
                 if col in self.relation.filter_dict:

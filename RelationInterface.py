@@ -153,7 +153,7 @@ class RelationInterface:
             expected_type = col_types.get(key)
 
             if expected_type == "date":
-                if not is_valid_date(value) and value != "":
+                if not is_valid_date(value) and value != "" and value != "Not Set":
                     raise ValueError(
                         f"Invalid date. Make sure {key} has the format YYYY-MM-DD and is a real date."
                     )

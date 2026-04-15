@@ -112,6 +112,14 @@ def init_db(db_path, test=False):
     ) STRICT;
     """)
     
+    try:
+        conn.execute("""
+            ALTER TABLE Products
+            RENAME COLUMN Barcode TO BarcodeContains
+        """)
+    except Exception:
+        pass  # or log it
+
     # ---------- Consumable Logs ----------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ConsumableLogs (
@@ -571,7 +579,6 @@ def get_column_types(table_name, db_path):
     Returns a dict mapping column name -> logical type: 'integer', 'float', 'text', 'date'
     """
     types = {}
-    date_pattern = re.compile(r'date', re.IGNORECASE)
 
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
@@ -586,7 +593,7 @@ def get_column_types(table_name, db_path):
             elif any(x in col_type_upper for x in ["REAL", "FLOA", "DOUB"]):
                 types[name] = "float"
             # Detect dates by name
-            elif date_pattern.search(name):
+            elif "DATE" in name.upper():
                 types[name] = "date"
             else:
                 types[name] = "text"
@@ -745,20 +752,20 @@ def set_barcode(db_path, name, barcode):
         cur = conn.cursor()
         cur.execute("""
             UPDATE Products
-            SET Barcode = ?
+            SET BarcodeContains = ?
             WHERE ProductName = ?
         """, (barcode, name))
         if cur.rowcount <= 0:
             raise Exception("No product was updated")
 
-def get_product_name(db_path, barcode):
+def get_product_name(db_path, barcode_pattern):
     with sqlite3.connect(db_path) as conn:  
         conn.row_factory = sqlite3.Row
         cursor = conn.execute("""
             SELECT ProductName
             FROM Products
-            WHERE Barcode = ?
-        """, (barcode,))
+            WHERE ? LIKE '%' || BarcodeContains || '%'
+        """, (barcode_pattern,))
         row = cursor.fetchone()
     
     if row is None:

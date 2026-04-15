@@ -167,9 +167,9 @@ if __name__ == "__main__":
 
     DB.init_db(db_path, test=TEST_MODE)
 
-    latest_deployed = DB.get_latest_app_version(db_path)
-    if latest_deployed < VERSION:
-        DB.set_latest_app_version(db_path, VERSION)
+    # latest_deployed = DB.get_latest_app_version(db_path)
+    # if latest_deployed < VERSION:
+    #    DB.set_latest_app_version(db_path, VERSION)
 
     def non_cons_log_content(notebook, root):
         # -------------------- Main Window --------------------
@@ -615,7 +615,7 @@ if __name__ == "__main__":
         def set_current_barcode(name, barcode):
             answer = messagebox.askyesno(
                 title="Confirm ",
-                message=f"Set '{barcode}' as the barcode for '{name}'?"
+                message=f"If the entered barcode has the string '{barcode}' then get '{name}'?"
             )
 
             if answer:
@@ -623,7 +623,7 @@ if __name__ == "__main__":
                 result = run_with_error_handling(root, DB.set_barcode, db_path, name, barcode)
                 root.config(cursor="")
                 if result["status"].lower() == "ok":
-                    messagebox.showinfo("Success", f"Barcode for '{name}' updated to '{barcode}'")
+                    messagebox.showinfo("Success", f"Now returning '{name}' when barcode contains '{barcode}'")
             else:
                 print("Action canceled")
         
@@ -652,7 +652,7 @@ if __name__ == "__main__":
                 widg.destroy()
 
             buttons = [
-                ("Assign Barcode", set_current_barcode),
+                ("Set Fetch Rule", set_current_barcode),
                 ("Receive", receive_cons),
             ]
 
@@ -725,7 +725,7 @@ if __name__ == "__main__":
                     widg.destroy()
 
                 buttons = [
-                    ("Assign Barcode", set_current_barcode),
+                    ("Set Fetch Rule", set_current_barcode),
                     ("Receive", receive_non_cons),
                 ]
 
@@ -816,7 +816,7 @@ if __name__ == "__main__":
                 font=("Segoe UI", 10, "bold"),
                 pady=8
             ).pack(fill="x")            
-    registry.on_table_update(show_warning_if_app_outdated) 
-    show_warning_if_app_outdated()
+    # registry.on_table_update(show_warning_if_app_outdated) 
+    # show_warning_if_app_outdated()
 
     root.mainloop()
