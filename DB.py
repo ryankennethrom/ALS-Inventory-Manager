@@ -113,11 +113,7 @@ def init_db(db_path, test=False):
     """)
     
     try:
-        cursor.execute("""
-            UPDATE Products
-            SET Price = 0
-            WHERE ProductName = 'PH3 Buffer Solution';
-        """)
+        pass
     except Exception:
         pass  # or log it
 
