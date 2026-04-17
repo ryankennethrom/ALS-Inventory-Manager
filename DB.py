@@ -113,9 +113,10 @@ def init_db(db_path, test=False):
     """)
     
     try:
-        conn.execute("""
-            ALTER TABLE Products
-            RENAME COLUMN Barcode TO BarcodeContains
+        cursor.execute("""
+            UPDATE Products
+            SET Price = 0
+            WHERE ProductName = 'PH3 Buffer Solution';
         """)
     except Exception:
         pass  # or log it
@@ -765,6 +766,7 @@ def get_product_name(db_path, barcode_pattern):
             SELECT ProductName
             FROM Products
             WHERE ? LIKE '%' || BarcodeContains || '%'
+            ORDER BY LENGTH(BarcodeContains) DESC
         """, (barcode_pattern,))
         row = cursor.fetchone()
     
