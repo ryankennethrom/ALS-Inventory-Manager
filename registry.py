@@ -69,7 +69,13 @@ def on_table_update(callback, exceptions=[], parents={parent for parent in relat
             if not hasattr(relation_widget, "update_table_original_saved"):
                 relation_widget.update_table_original = relation_widget.update_table
             
+            if not hasattr(relation_widget, "callbacks"):
+                relation_widget.callbacks = []
+            
+            relation_widget.callbacks.append(callback)
+
             def callback_after_table_update(obj):
                 obj.update_table_original()
-                callback()
+                for c in obj.callbacks:
+                    c()
             relation_widget.update_table = types.MethodType(callback_after_table_update, relation_widget)

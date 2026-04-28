@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import DB
+from Application import Application
 from RelationInterface import RelationInterface
 from RelationWidget import RelationWidget
 from error_handler import run_with_error_handling
@@ -15,6 +16,7 @@ from app_version import version
 import tkinter.font as tkfont
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 from entry_helpers import attach_helper
+import entry_helpers
 from tkinter import messagebox
 import pyautogui
 from datetime import date
@@ -143,6 +145,7 @@ if __name__ == "__main__":
 
     stop_if_instance_active()
 
+
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
     parser.add_argument(
         "--test",
@@ -152,24 +155,23 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     VERSION = version
+    BackupFolderName = "VersionHistory"
     TEST_MODE = args.test
     PROD_MODE = not TEST_MODE
+    
 
     if TEST_MODE:
         db_path = "./dist/data.db"
     else:
         default_path = "./data.db"
-
         if os.path.exists(default_path):
             db_path = default_path
         else:
-            db_path = DB.get_db_path()
+            db_path = DB.get_db_path() 
+        Application.save(BackupFolderName, f"v{VERSION}")
+        Application.run_on_startup(True)
 
-    DB.init_db(db_path, test=TEST_MODE)
-
-    # latest_deployed = DB.get_latest_app_version(db_path)
-    # if latest_deployed < VERSION:
-    #    DB.set_latest_app_version(db_path, VERSION)
+    # DB.init_db(db_path, test=TEST_MODE)
 
     def non_cons_log_content(notebook, root):
         # -------------------- Main Window --------------------
@@ -351,7 +353,7 @@ if __name__ == "__main__":
             labels=["Analytics"],
             min_height=int(height*0.3),
             is_view=True,
-            title="Consumables/Non-consumables"
+            title="Without Discontinued"
         )
 
         productsTotalSupply = RelationWidget(
@@ -360,7 +362,7 @@ if __name__ == "__main__":
             labels=["Analytics"],
             min_height=int(height*0.3),
             is_view=True,
-            title="Consumables/Non-consumables"
+            title="All Products"
         )
         
         reorder = RelationWidget(
@@ -370,7 +372,7 @@ if __name__ == "__main__":
             min_height=int(height*0.3),
             exclude_fields_on_show=[],
             is_view=True,
-            title="Consumables/Non-consumables"
+            title="Without Discontinued"
         )
 
         consumablesReport = RelationWidget(
@@ -380,7 +382,7 @@ if __name__ == "__main__":
             min_height=int(height*0.3),
             exclude_fields_on_show=[],
             is_view=True,
-            title="Consumables"
+            title="With Discontinued"
         )
 
         # -------- Widgets -----------
@@ -801,6 +803,13 @@ if __name__ == "__main__":
     root = tk.Tk()
     style = ttk.Style()
 
+    def on_closing():
+        answer = messagebox.askyesno("Exit", "Are you sure you want to exit the app ? ")
+        if answer:
+            root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", lambda: root.iconify())
+
     run_with_error_handling(root, nav, root, db_path)
 
     def show_warning_if_app_outdated():
@@ -818,5 +827,7 @@ if __name__ == "__main__":
             ).pack(fill="x")            
     # registry.on_table_update(show_warning_if_app_outdated) 
     # show_warning_if_app_outdated()
+    
+    registry.on_table_update(entry_helpers.update_helpers, parents=["Products"])
 
     root.mainloop()

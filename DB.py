@@ -36,6 +36,7 @@ def select_database_file():
     return file_path
 
 
+
 def get_db_path():
     config_path = get_config_path()
     config = configparser.ConfigParser()
@@ -87,6 +88,108 @@ def connect(db_path):
     conn.execute("PRAGMA foreign_keys = ON;")  # ensure FK checks
     return conn
 
+def try_add_discontinued_column(db_path):
+    conn = connect(db_path)
+    cur = conn.cursor()
+
+    try:
+        cur.execute("ALTER TABLE Products ADD COLUMN IsDiscontinued TEXT NOT NULL DEFAULT 'n' CHECK (IsDiscontinued IN ('n', 'y'))")
+    except sqlite3.OperationalError:
+        pass
+
+    conn.commit()
+    conn.close()
+
+def recreate_dangerously_low(db_path):
+    conn = connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute(""" DROP VIEW IF EXISTS DangerouslyLow; """)
+
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS DangerouslyLow AS
+    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Station, p.EmergencyCount
+    FROM ConsumablesAvailableTotaled c
+    LEFT JOIN Products p ON c.ProductName = p.ProductName
+    WHERE c.TotalQuantityAvailable <= p.EmergencyCount AND p.IsDiscontinued = 'n'
+
+    UNION ALL
+
+    SELECT
+        p.ProductName,
+        COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
+        p.IsConsumable,
+        p.UnitOfMeasure,
+        p.Station,
+        p.EmergencyCount
+    FROM Products p
+    LEFT JOIN AvailableNonConsumables n
+        ON n.ProductName = p.ProductName
+    WHERE p.IsConsumable = 'n'
+      AND COALESCE(n.TotalQuantityAvailable, 0) <= p.EmergencyCount AND p.IsDiscontinued = 'n';
+    """)
+
+    conn.commit()
+    conn.close()
+
+def recreate_products_total_supply(db_path):
+    conn = connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute(""" DROP VIEW IF EXISTS ProductsTotalSupply; """)
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS ProductsTotalSupply AS
+    SELECT p.ProductName, p.IsDiscontinued, COALESCE(c.TotalQuantityAvailable, 0) as TotalQuantityAvailable, p.Station, p.IsConsumable, p.UnitOfMeasure
+    FROM Products p
+    LEFT JOIN ConsumablesAvailableTotaled c ON c.ProductName = p.ProductName
+    WHERE p.IsConsumable = 'y'
+
+    UNION ALL
+
+    SELECT p.ProductName, p.IsDiscontinued, COALESCE(n.TotalQuantityAvailable, 0), p.Station, p.IsConsumable, p.UnitOfMeasure
+    FROM Products p
+    LEFT JOIN AvailableNonConsumables n ON n.ProductName = p.ProductName
+    WHERE p.IsConsumable = 'n'
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+def recreate_reorder_list(db_path):
+    conn = connect(db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute(""" DROP VIEW IF EXISTS ReOrderList; """)
+
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS ReOrderList AS
+    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Station, p.LowSupplyCount
+    FROM ConsumablesAvailableTotaled c
+    LEFT JOIN Products p ON c.ProductName = p.ProductName
+    WHERE c.TotalQuantityAvailable <= p.LowSupplyCount AND p.IsDiscontinued = 'n'
+
+    UNION ALL
+
+    SELECT
+        p.ProductName,
+        COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
+        p.IsConsumable,
+        p.UnitOfMeasure,
+        p.Station,
+        p.LowSupplyCount
+    FROM Products p
+    LEFT JOIN AvailableNonConsumables n
+        ON n.ProductName = p.ProductName
+    WHERE p.IsConsumable = 'n'
+      AND COALESCE(n.TotalQuantityAvailable, 0) <= p.LowSupplyCount AND p.IsDiscontinued = 'n';
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+
 def init_db(db_path, test=False):
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON;")
@@ -112,11 +215,6 @@ def init_db(db_path, test=False):
     ) STRICT;
     """)
     
-    try:
-        pass
-    except Exception:
-        pass  # or log it
-
     # ---------- Consumable Logs ----------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ConsumableLogs (
@@ -362,6 +460,8 @@ def init_db(db_path, test=False):
     """)
 
     # ----------- Views ------------------
+    recreate_products_total_supply(db_path)
+
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS OutOfStockConsumables AS
     SELECT p.ProductName
@@ -441,75 +541,10 @@ def init_db(db_path, test=False):
     GROUP BY p.ProductName
     """)
 
-    cursor.execute("""
-    CREATE VIEW IF NOT EXISTS ProductsTotalSupply AS
-    SELECT p.ProductName, COALESCE(c.TotalQuantityAvailable, 0) as TotalQuantityAvailable, p.Station, p.IsConsumable, p.UnitOfMeasure
-    FROM Products p
-    LEFT JOIN ConsumablesAvailableTotaled c ON c.ProductName = p.ProductName
-    WHERE p.IsConsumable = 'y'
 
-    UNION ALL
+    recreate_dangerously_low(db_path)
+    recreate_reorder_list(db_path) 
     
-    SELECT p.ProductName, COALESCE(n.TotalQuantityAvailable, 0), p.Station, p.IsConsumable, p.UnitOfMeasure
-    FROM Products p
-    LEFT JOIN AvailableNonConsumables n ON n.ProductName = p.ProductName
-    WHERE p.IsConsumable = 'n'
-    """)
-
-
-    
-    if test:
-        cursor.execute(""" DROP VIEW IF EXISTS ReOrderList; """)
-
-    cursor.execute("""
-    CREATE VIEW IF NOT EXISTS ReOrderList AS
-    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Station, p.LowSupplyCount
-    FROM ConsumablesAvailableTotaled c
-    LEFT JOIN Products p ON c.ProductName = p.ProductName
-    WHERE c.TotalQuantityAvailable <= p.LowSupplyCount
-
-    UNION ALL
-
-    SELECT
-        p.ProductName,
-        COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
-        p.IsConsumable,
-        p.UnitOfMeasure,
-        p.Station,
-        p.LowSupplyCount
-    FROM Products p
-    LEFT JOIN AvailableNonConsumables n
-        ON n.ProductName = p.ProductName
-    WHERE p.IsConsumable = 'n'
-      AND COALESCE(n.TotalQuantityAvailable, 0) <= p.LowSupplyCount;
-    """)
-
-    if test:
-        cursor.execute(""" DROP VIEW IF EXISTS DangerouslyLow; """)
-
-    cursor.execute("""
-    CREATE VIEW IF NOT EXISTS DangerouslyLow AS
-    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Station, p.EmergencyCount
-    FROM ConsumablesAvailableTotaled c
-    LEFT JOIN Products p ON c.ProductName = p.ProductName
-    WHERE c.TotalQuantityAvailable <= p.EmergencyCount
-
-    UNION ALL
-
-    SELECT
-        p.ProductName,
-        COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
-        p.IsConsumable,
-        p.UnitOfMeasure,
-        p.Station,
-        p.EmergencyCount
-    FROM Products p
-    LEFT JOIN AvailableNonConsumables n
-        ON n.ProductName = p.ProductName
-    WHERE p.IsConsumable = 'n'
-      AND COALESCE(n.TotalQuantityAvailable, 0) <= p.EmergencyCount;
-    """)
-
     if test:
         cursor.execute(""" DROP VIEW IF EXISTS OutOfStock; """)
     

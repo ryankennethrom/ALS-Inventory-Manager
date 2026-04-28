@@ -11,6 +11,8 @@ import pythoncom
 import time
 from PIL import Image
 
+_registry = []
+
 def scan_document_and_save(connect_timeout=10):
     """
     Scans a document and returns the saved file path.
@@ -332,9 +334,6 @@ def attach_listpicker(entry, options_list):
 
     return entry.bind("<FocusIn>", show_dropdown)
 
-def unattach_all(entry):
-    entry.unbind("<FocusIn>")
-
 def attach_fuzzy_list(entry, data):
     """
     Attach a dropdown list picker to a Tkinter Entry widget.
@@ -580,9 +579,20 @@ def attach_filepath_manager(entry):
         entry.bind("<Return>", lambda e: dropdown.destroy(), add='+')
     return entry.bind("<FocusIn>", show_dropdown)
 
+    
 
+def unattach_all():
+    for entry_config in _registry:
+        root, entry_name, entry, db_path, relation_name, all_columns, all_column_types = entry_config
+        if entry.winfo_exists():
+            entry.unbind("<FocusIn>")
 
 def attach_helper(root, entry_name, entry, db_path, relation_name, all_columns, all_column_types):
+    entry_config = (root, entry_name, entry, db_path, relation_name, all_columns, all_column_types)  
+    
+    if entry_config not in _registry:
+        _registry.append(entry_config)
+
     col = entry_name
     if all_column_types[col] == "date":
         attach_datepicker(entry)
@@ -590,9 +600,16 @@ def attach_helper(root, entry_name, entry, db_path, relation_name, all_columns, 
         attach_fuzzy_list(entry, DB.get_productnames(db_path, relation_name))
     elif col == "Station":
         attach_fuzzy_list(entry, DB.get_stations(db_path))
-    elif col == "IsConsumable":
+    elif col == "IsConsumable" or col == "IsDiscontinued":
         attach_fuzzy_list(entry, ["y", "n"])
     elif col == "ActionType":
         attach_fuzzy_list(entry, ["Received", "Opened"])
     elif col == "CoaFilePath":
         attach_filepath_manager(entry)
+
+def update_helpers():
+    unattach_all()
+    for entry_config in _registry: 
+        root, entry_name, entry, db_path, relation_name, all_columns, all_column_types = entry_config
+        if entry.winfo_exists():
+            attach_helper(*entry_config)

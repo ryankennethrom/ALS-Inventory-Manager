@@ -17,6 +17,8 @@ import uuid
 import registry
 from datetime import date
 from openpyxl import load_workbook
+from exporter import TemplateExporter
+from Application import Application
 
 def generate_code(length=5):
     chars = string.ascii_uppercase + string.digits
@@ -354,68 +356,70 @@ class RelationWidget(ttk.LabelFrame):
                 return
 
             hash_part = uuid.uuid4().hex[:8]
-            default_name = f"{self.relation.relation_name}_{hash_part}.xlsx"
-
-            output_path = filedialog.asksaveasfilename(
-                title="Save Excel File As",
-                defaultextension=".xlsx",
-                initialfile=default_name,
-                filetypes=[("Excel Files", "*.xlsx")]
-            )
-
-            if not output_path:
-                return
-
-            self.relation.export_as_excel(
-                exclude_columns=exclude_fields,
-                output_path=output_path,
-                leading_empty_rows=preface_size
-            )
-
+            
+            
             if with_preface:
+
+                default_name = f"{self.relation.relation_name}_{hash_part}.xlsm"
+
+                output_path = filedialog.asksaveasfilename(
+                    title="Save Excel File As",
+                    defaultextension=".xlsm",
+                    initialfile=default_name,
+                    filetypes=[("Excel Files", "*.xlsm")]
+                )
+
+                if not output_path:
+                    return
+
                 try:
-                    template_wb = load_workbook("template.xlsm")
-                    template_ws = template_wb.active
+                    alphabet = [
+                        "A","B","C","D","E","F","G","H","I","J","K","L","M",
+                        "N","O","P","Q","R","S","T","U","V","W","X","Y","Z"
+                    ]
+                    mapping=dict()
+                    i = 0
+                    for row in self.relation.curr_results:
+                        for key, value in row.items():
+                            if key in exclude_fields:
+                                continue
+                            mapping[key] = alphabet[i] + "12"
+                            i += 1
+                        break
 
-                    output_wb = load_workbook(output_path)
-                    output_ws = output_wb.active
-
-                    # Insert rows at top
-                    output_ws.insert_rows(1, amount=preface_size)
-
-                    # Copy rows with full formatting
-                    for row in template_ws.iter_rows(min_row=1, max_row=preface_size):
-                        for cell in row:
-                            new_cell = output_ws.cell(row=cell.row, column=cell.column)
-
-                            # Copy value
-                            new_cell.value = cell.value
-
-                            if cell.has_style:
-                                new_cell.font = copy.copy(cell.font)
-                                new_cell.border = copy.copy(cell.border)
-                                new_cell.fill = copy.copy(cell.fill)
-                                new_cell.number_format = copy.copy(cell.number_format)
-                                new_cell.protection = copy.copy(cell.protection)
-                                new_cell.alignment = copy.copy(cell.alignment)
-
-                    # Copy column widths
-                    for col_letter, dim in template_ws.column_dimensions.items():
-                        output_ws.column_dimensions[col_letter].width = dim.width
-
-                    # Copy row heights
-                    for i in range(1, preface_size+1):
-                        if template_ws.row_dimensions[i].height:
-                            output_ws.row_dimensions[i].height = template_ws.row_dimensions[i].height
-
-                    # Copy merged cells
-                    for merged_range in template_ws.merged_cells.ranges:
-                        output_ws.merge_cells(str(merged_range))
-
-                    output_wb.save(output_path)
-
+                    data = dict()
+                    for row in self.relation.curr_results:
+                        for key, value in row.items():
+                            if key not in data:
+                                data[key] = [value]
+                            else:
+                                data[key].append(value)
+                    
+                    exporter = TemplateExporter("template.xlsm", mapping)
+                    exporter.export(data, output_file=output_path)
                 except Exception as e:
                     print("Template formatting failed:", e)
+            
+            else:
+                default_name = f"{self.relation.relation_name}_{hash_part}.xlsx"
+
+                output_path = filedialog.asksaveasfilename(
+                    title="Save Excel File As",
+                    defaultextension=".xlsx",
+                    initialfile=default_name,
+                    filetypes=[("Excel Files", "*.xlsx")]
+                )
+
+                if not output_path:
+                    return
+
+
+                self.relation.export_as_excel(
+                    exclude_columns=exclude_fields,
+                    output_path=output_path,
+                    leading_empty_rows=preface_size
+                )
+            Application.openfile(output_path)
 
         run_with_error_handling(self, _export)
 
