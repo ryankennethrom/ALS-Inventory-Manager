@@ -1174,18 +1174,24 @@ imported by:
 
 <div class="node">
   <a name="Application"></a>
-  <a target="code" href="///C:/Users/aledm.lab01/Staging/als-inventory-manager/Application.py" type="text/plain"><tt>Application</tt></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/Application.py" type="text/plain"><tt>Application</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#os">os</a>
+ &#8226;   <a href="#platform">platform</a>
  &#8226;   <a href="#shutil">shutil</a>
+ &#8226;   <a href="#subprocess">subprocess</a>
  &#8226;   <a href="#sys">sys</a>
+ &#8226;   <a href="#time">time</a>
  &#8226;   <a href="#win32com.client">win32com.client</a>
+ &#8226;   <a href="#win32con">win32con</a>
+ &#8226;   <a href="#win32gui">win32gui</a>
 
   </div>
   <div class="import">
 imported by:
-    <a href="#main.py">main.py</a>
+    <a href="#RelationWidget">RelationWidget</a>
+ &#8226;   <a href="#main.py">main.py</a>
 
   </div>
 
@@ -1193,7 +1199,7 @@ imported by:
 
 <div class="node">
   <a name="DB"></a>
-  <a target="code" href="///C:/Users/aledm.lab01/Staging/als-inventory-manager/DB.py" type="text/plain"><tt>DB</tt></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/DB.py" type="text/plain"><tt>DB</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#configparser">configparser</a>
@@ -3780,7 +3786,7 @@ imported by:
 
 <div class="node">
   <a name="RelationInterface"></a>
-  <a target="code" href="///C:/Users/aledm.lab01/Staging/als-inventory-manager/RelationInterface.py" type="text/plain"><tt>RelationInterface</tt></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/RelationInterface.py" type="text/plain"><tt>RelationInterface</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#DB">DB</a>
@@ -3809,16 +3815,18 @@ imported by:
 
 <div class="node">
   <a name="RelationWidget"></a>
-  <a target="code" href="///C:/Users/aledm.lab01/Staging/als-inventory-manager/RelationWidget.py" type="text/plain"><tt>RelationWidget</tt></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/RelationWidget.py" type="text/plain"><tt>RelationWidget</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#DB">DB</a>
+    <a href="#Application">Application</a>
+ &#8226;   <a href="#DB">DB</a>
  &#8226;   <a href="#RelationInterface">RelationInterface</a>
  &#8226;   <a href="#copy">copy</a>
  &#8226;   <a href="#datetime">datetime</a>
  &#8226;   <a href="#entry_helpers">entry_helpers</a>
  &#8226;   <a href="#error_handler">error_handler</a>
  &#8226;   <a href="#error_ui">error_ui</a>
+ &#8226;   <a href="#exporter">exporter</a>
  &#8226;   <a href="#openpyxl">openpyxl</a>
  &#8226;   <a href="#random">random</a>
  &#8226;   <a href="#registry">registry</a>
@@ -6388,7 +6396,7 @@ imported by:
 
 <div class="node">
   <a name="app_version"></a>
-  <a target="code" href="///C:/Users/aledm.lab01/Staging/als-inventory-manager/app_version.py" type="text/plain"><tt>app_version</tt></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/app_version.py" type="text/plain"><tt>app_version</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imported by:
     <a href="#main.py">main.py</a>
@@ -13438,7 +13446,7 @@ imported by:
 
 <div class="node">
   <a name="entry_helpers"></a>
-  <a target="code" href="///C:/Users/aledm.lab01/Staging/als-inventory-manager/entry_helpers.py" type="text/plain"><tt>entry_helpers</tt></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/entry_helpers.py" type="text/plain"><tt>entry_helpers</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#DB">DB</a>
@@ -13570,7 +13578,7 @@ imported by:
 
 <div class="node">
   <a name="error_handler"></a>
-  <a target="code" href="///C:/Users/aledm.lab01/Staging/als-inventory-manager/error_handler.py" type="text/plain"><tt>error_handler</tt></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/error_handler.py" type="text/plain"><tt>error_handler</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#error_ui">error_ui</a>
@@ -13589,7 +13597,7 @@ imported by:
 
 <div class="node">
   <a name="error_ui"></a>
-  <a target="code" href="///C:/Users/aledm.lab01/Staging/als-inventory-manager/error_ui.py" type="text/plain"><tt>error_ui</tt></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/error_ui.py" type="text/plain"><tt>error_ui</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#tkinter">tkinter</a>
@@ -13662,6 +13670,23 @@ imports:
 imported by:
     <a href="#et_xmlfile">et_xmlfile</a>
  &#8226;   <a href="#openpyxl.xml.functions">openpyxl.xml.functions</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="exporter"></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/exporter.py" type="text/plain"><tt>exporter</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#openpyxl">openpyxl</a>
+ &#8226;   <a href="#openpyxl.utils.cell">openpyxl.utils.cell</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#RelationWidget">RelationWidget</a>
 
   </div>
 
@@ -23692,6 +23717,7 @@ imports:
 imported by:
     <a href="#RelationInterface">RelationInterface</a>
  &#8226;   <a href="#RelationWidget">RelationWidget</a>
+ &#8226;   <a href="#exporter">exporter</a>
  &#8226;   <a href="#openpyxl._constants">openpyxl._constants</a>
  &#8226;   <a href="#openpyxl.cell">openpyxl.cell</a>
  &#8226;   <a href="#openpyxl.cell._writer">openpyxl.cell._writer</a>
@@ -27115,7 +27141,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#openpyxl.formatting.rule">openpyxl.formatting.rule</a>
+    <a href="#exporter">exporter</a>
+ &#8226;   <a href="#openpyxl.formatting.rule">openpyxl.formatting.rule</a>
  &#8226;   <a href="#openpyxl.utils">openpyxl.utils</a>
  &#8226;   <a href="#openpyxl.workbook.defined_name">openpyxl.workbook.defined_name</a>
  &#8226;   <a href="#openpyxl.worksheet.print_settings">openpyxl.worksheet.print_settings</a>
@@ -41874,7 +41901,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#_pyrepl.unix_console">_pyrepl.unix_console</a>
+    <a href="#Application">Application</a>
+ &#8226;   <a href="#_pyrepl.unix_console">_pyrepl.unix_console</a>
  &#8226;   <a href="#mouseinfo">mouseinfo</a>
  &#8226;   <a href="#numpy.f2py.crackfortran">numpy.f2py.crackfortran</a>
  &#8226;   <a href="#numpy.lib._utils_impl">numpy.lib._utils_impl</a>
@@ -44260,7 +44288,7 @@ imported by:
 
 <div class="node">
   <a name="registry"></a>
-  <a target="code" href="///C:/Users/aledm.lab01/Staging/als-inventory-manager/registry.py" type="text/plain"><tt>registry</tt></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/registry.py" type="text/plain"><tt>registry</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#types">types</a>
@@ -48956,7 +48984,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#PIL.EpsImagePlugin">PIL.EpsImagePlugin</a>
+    <a href="#Application">Application</a>
+ &#8226;   <a href="#PIL.EpsImagePlugin">PIL.EpsImagePlugin</a>
  &#8226;   <a href="#PIL.GifImagePlugin">PIL.GifImagePlugin</a>
  &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.ImageShow">PIL.ImageShow</a>
@@ -49632,7 +49661,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#PIL.PdfImagePlugin">PIL.PdfImagePlugin</a>
+    <a href="#Application">Application</a>
+ &#8226;   <a href="#PIL.PdfImagePlugin">PIL.PdfImagePlugin</a>
  &#8226;   <a href="#PIL.PdfParser">PIL.PdfParser</a>
  &#8226;   <a href="#RelationWidget">RelationWidget</a>
  &#8226;   <a href="#_datetime">_datetime</a>
@@ -52684,7 +52714,8 @@ imported by:
   <a target="code" href="///C:/Users/aledm.lab01/AppData/Local/Python/pythoncore-3.14-64/Lib/site-packages/win32/lib/win32con.py" type="text/plain"><tt>win32con</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imported by:
-    <a href="#pywin.dialogs.list">pywin.dialogs.list</a>
+    <a href="#Application">Application</a>
+ &#8226;   <a href="#pywin.dialogs.list">pywin.dialogs.list</a>
  &#8226;   <a href="#pywin.dialogs.status">pywin.dialogs.status</a>
  &#8226;   <a href="#pywin.mfc.dialog">pywin.mfc.dialog</a>
  &#8226;   <a href="#pywin.mfc.window">pywin.mfc.window</a>
@@ -52701,6 +52732,16 @@ imported by:
   <tt>win32event</tt> <span class="moduletype"><tt>C:\Users\aledm.lab01\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\win32\win32event.pyd</tt></span>  <div class="import">
 imported by:
     <a href="#win32com.client.gencache">win32com.client.gencache</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="win32gui"></a>
+  <tt>win32gui</tt> <span class="moduletype"><tt>C:\Users\aledm.lab01\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\win32\win32gui.pyd</tt></span>  <div class="import">
+imported by:
+    <a href="#Application">Application</a>
 
   </div>
 
