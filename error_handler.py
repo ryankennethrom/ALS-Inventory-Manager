@@ -1,6 +1,7 @@
-from error_ui import show_error_ui
+from error_ui import show_error_ui, ask_yes_no
 import traceback
 import sqlite3
+import DB
 
 def humanize_error(e: Exception) -> tuple[str, str]:
     msg = str(e)
@@ -75,6 +76,14 @@ def humanize_error(e: Exception) -> tuple[str, str]:
 
     return (out["Short"],out["Details"])
 
+def on_attempt_to_use_emergency_supplies(master, func, *args, **kwargs):
+    if ask_yes_no("Attempt to use emergency supplies. You must notify management about this product. Type 'I will notify management' below to confirm.", master, "I will notify management"):
+        result = DB.run_with_disabled_emergency_lock(DB.PATH, func, *args, **kwargs)
+        return result
+    else:
+        result = "Attempt to use emergency supply cancelled."
+        return result
+
 def run_with_error_handling(master, func, *args, **kwargs):
     try:
         result = func(*args, **kwargs)
@@ -85,10 +94,21 @@ def run_with_error_handling(master, func, *args, **kwargs):
         return payload
     except Exception as e:
         short, details = humanize_error(traceback.format_exc())
+        
         print(details)
-        show_error_ui(short, details, master) 
-        payload = {
-                "status": "Error",
-                "result": "None"
-        }
-        return payload
+
+        if "Attempt to use emergency supplies." in short:
+            result = on_attempt_to_use_emergency_supplies(master, func, *args, **kwargs)
+            payload = {
+                "status": "Ok",
+                "result": result
+            }
+            return payload
+
+        else: 
+            show_error_ui(short, details, master) 
+            payload = {
+                    "status": "Error",
+                    "result": "None"
+            }
+            return payload

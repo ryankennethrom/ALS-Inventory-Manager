@@ -4,8 +4,80 @@ import shutil
 import subprocess
 import platform
 import time
+import psutil
+import win32event
+import win32api
+import win32con
 
 class Application:
+    EXE_NAME = "ALS Inventory Manager.exe"
+    DatabasePath = "Resources/Database/data.db"
+
+    @staticmethod
+    def run_every_five_minutes():
+        exe_path = os.path.abspath(Application.EXE_NAME)
+        exe_dir = os.path.dirname(exe_path)
+        task_name = "ALS_Inventory_Manager_5min"
+
+        vbs_path = os.path.join(exe_dir, "Resources/AppRunners/run_app.vbs")
+
+        def register_task(vbs_path):
+            task_name = "ALS_Inventory_Manager_5min"
+            
+            CREATE_NO_WINDOW = 0x08000000
+
+            # Delete old task if it exists
+            subprocess.run(
+                ["schtasks", "/Delete", "/TN", task_name, "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=CREATE_NO_WINDOW,
+                shell=False
+            )
+
+            # Create new task
+            subprocess.run([
+                "schtasks",
+                "/Create",
+                "/SC", "MINUTE",
+                "/MO", "30",
+                "/ST", "00:00",
+                "/TN", task_name,
+                "/TR", f'wscript.exe "{vbs_path}"',
+                "/RL", "LIMITED",
+                "/RU", os.environ["USERNAME"],
+                "/F"
+            ],
+            creationflags=CREATE_NO_WINDOW
+            )
+
+        def create_vbs_launcher(exe_name, exe_dir, vbs_path):
+                vbs_content = f'''
+            Set WshShell = CreateObject("Wscript.Shell")
+            WshShell.Run "powershell.exe -WindowStyle Hidden -Command ""Start-Process '{exe_name}' -WorkingDirectory '{exe_dir}' -WindowStyle Hidden""", 0, False
+            '''
+
+                with open(vbs_path, "w", encoding="utf-8") as f:
+                    f.write(vbs_content)
+
+        create_vbs_launcher(Application.EXE_NAME, exe_dir, vbs_path)
+        register_task(vbs_path)
+
+    @staticmethod
+    def is_allowed_to_run():
+        maintenance_flag = os.path.join(os.getcwd(), "AppInMaintenance.txt")
+        return not os.path.exists(maintenance_flag)
+    
+    @staticmethod
+    def kill_all_instance():
+        subprocess.Popen(
+            ["cmd", "/c", "start", "/B", "taskkill", "/F", "/T","/IM", f"{Application.EXE_NAME}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=0x08000000  # CREATE_NO_WINDOW
+        )
+        
+
     @staticmethod
     def run_on_startup(enable=True):
         """
@@ -53,7 +125,7 @@ class Application:
     @staticmethod
     def save(save_folder, folder_name):
         # Build full path: save_folder/folder_name
-        target_dir = os.path.join(save_folder, folder_name)
+        target_dir = os.path.join(f"Resources/{save_folder}", folder_name)
 
         # Create directory if it doesn't exist
         os.makedirs(target_dir, exist_ok=True)
@@ -70,14 +142,13 @@ class Application:
         exe_name = os.path.basename(exe_path)
         shutil.copy2(exe_path, os.path.join(target_dir, exe_name))
 
-        # Copy data.db (must be in same directory as the exe/script)
         base_dir = os.path.dirname(exe_path)
-        db_path = os.path.join(base_dir, "data.db")
+        db_path = os.path.join(base_dir, Application.DatabasePath)
 
         if os.path.exists(db_path):
             shutil.copy2(db_path, os.path.join(target_dir, "data.db"))
         else:
-            raise FileNotFoundError("data.db not found next to the executable")
+            raise FileNotFoundError("data.db not found")
 
         return target_dir
 

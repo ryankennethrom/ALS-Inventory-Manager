@@ -9,7 +9,7 @@ from tkinter import filedialog, messagebox
 
 APP_NAME = "InventoryApp"
 CONFIG_FILE = "config.ini"
-
+PATH = None
 
 def get_config_path():
     appdata = os.getenv("APPDATA")
@@ -35,9 +35,13 @@ def select_database_file():
     root.destroy()
     return file_path
 
+def get_db_path(test_mode=False):
+    if test_mode:
+        return "./dist/Resources/Database/data.db"
+    else:
+        return "./Resources/Database/data.db"
 
-
-def get_db_path():
+def ask_for_db_path():
     config_path = get_config_path()
     config = configparser.ConfigParser()
 
@@ -188,7 +192,90 @@ def recreate_reorder_list(db_path):
     conn.commit()
     conn.close()
 
+def add_barcode_check_constraint(db_path):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
+    # Disable FK checks for migration
+    cursor.execute("PRAGMA foreign_keys = OFF;")
+    conn.execute("BEGIN TRANSACTION;")
+
+    # 1. Fetch triggers referencing Products
+    cursor.execute("""
+        SELECT name, sql FROM sqlite_master
+        WHERE type='trigger' AND sql LIKE '%Products%';
+    """)
+    triggers = cursor.fetchall()
+
+    # 2. Fetch views referencing Products
+    cursor.execute("""
+        SELECT name, sql FROM sqlite_master
+        WHERE type='view' AND sql LIKE '%Products%';
+    """)
+    views = cursor.fetchall()
+
+    # 3. Drop triggers
+    for name, _ in triggers:
+        cursor.execute(f"DROP TRIGGER IF EXISTS {name};")
+
+    # 4. Drop views
+    for name, _ in views:
+        cursor.execute(f"DROP VIEW IF EXISTS {name};")
+
+    # 5. Create new table with the corrected schema
+    cursor.execute("""
+        CREATE TABLE Products_new (
+            ProductName TEXT PRIMARY KEY,
+            BarcodeContains TEXT NOT NULL UNIQUE CHECK (BarcodeContains <> ''),
+            UnitOfMeasure TEXT NOT NULL,
+            ItemDescription TEXT NOT NULL,
+            Station TEXT NOT NULL,
+            IsConsumable TEXT NOT NULL CHECK (IsConsumable IN ('n', 'y')),
+            Price REAL DEFAULT 0 CHECK (Price >= 0),
+            LowSupplyCount INTEGER NOT NULL CHECK (LowSupplyCount >= 0),
+            EmergencyCount INTEGER NOT NULL DEFAULT 0 CHECK (EmergencyCount >= 0),
+            AlsItemNumber TEXT NOT NULL,
+            VendorNumber TEXT NOT NULL,
+            VendorItemNumber TEXT NOT NULL,
+            IsDiscontinued TEXT NOT NULL DEFAULT 'n' CHECK (IsDiscontinued IN ('n', 'y')),
+            CHECK (LowSupplyCount >= EmergencyCount)
+        ) STRICT;
+    """)
+
+    # 6. Copy data from old table
+    cursor.execute("""
+        INSERT INTO Products_new (
+            ProductName, BarcodeContains, UnitOfMeasure, ItemDescription,
+            Station, IsConsumable, Price, LowSupplyCount, EmergencyCount,
+            AlsItemNumber, VendorNumber, VendorItemNumber, IsDiscontinued
+        )
+        SELECT
+            ProductName, BarcodeContains, UnitOfMeasure, ItemDescription,
+            Station, IsConsumable, Price, LowSupplyCount, EmergencyCount,
+            AlsItemNumber, VendorNumber, VendorItemNumber, IsDiscontinued
+        FROM Products;
+    """)
+
+    # 7. Drop old table
+    cursor.execute("DROP TABLE Products;")
+
+    # 8. Rename new table
+    cursor.execute("ALTER TABLE Products_new RENAME TO Products;")
+
+    # 9. Restore views
+    for name, sql in views:
+        cursor.execute(sql)
+
+    # 10. Restore triggers
+    for name, sql in triggers:
+        cursor.execute(sql)
+
+    # Re-enable FK checks
+    cursor.execute("PRAGMA foreign_keys = ON;")
+    conn.commit()
+    conn.close()
+
+    print("Migration complete: CHECK constraint added, views and triggers restored.")
 
 def init_db(db_path, test=False):
     conn = sqlite3.connect(db_path)
@@ -705,23 +792,37 @@ def get_query(relation_interface, db_path):
     conn.close()
     return query, where_params
 
-def get_productnames(db_path, relation_name):
+def get_productname_recommendations(db_path, group_names):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            
-            if "nonconsumable" in relation_name.lower():
-                where_clause = "WHERE IsConsumable = 'n'"
-            elif "consumable" in relation_name.lower():
-                where_clause = "WHERE IsConsumable = 'y'"
-            else:
-                where_clause = ""
-            cursor.execute(f"SELECT ProductName FROM Products {where_clause} ORDER BY ProductName")
-            rows = cursor.fetchall()
-            return [row[0] for row in rows]
+
+            conditions = []
+
+            group_names
+
+            if "Without Discontinued" in group_names: 
+                conditions.append("IsDiscontinued = 'n'")
+
+            if "Nonconsumables Only" in group_names:
+                conditions.append("IsConsumable = 'n'")
+            elif "Consumables Only" in group_names:
+                conditions.append("IsConsumable = 'y'")
+
+            where_clause = ""
+            if conditions:
+                where_clause = " WHERE " + " AND ".join(conditions)
+
+            query = f"SELECT ProductName FROM Products{where_clause} ORDER BY ProductName"
+            cursor.execute(query)
+
+            return [row[0] for row in cursor.fetchall()]
+
     except Exception as e:
         print("Error fetching product names:", e)
         return []
+
+    return get_productnames(db_path, group_name)
 
 def get_stations(db_path):
         """
@@ -878,3 +979,65 @@ def get_latest_app_version(db_path) -> int:
         conn.close()
         return row[0] if row else 1
     return 1
+
+def run_with_disabled_emergency_lock(db_path, func, *args, **kwargs):
+    trigger_name_1 = "on_emergency_opened_non_consumables"
+    trigger_name_2 = "on_emergency_opened_consumables"
+
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+
+    # --- Internal helpers ---
+    def get_trigger_sql(name):
+        cur.execute(
+            "SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?",
+            (name,)
+        )
+        row = cur.fetchone()
+        return row[0] if row else None
+
+    def disable_trigger(name):
+        cur.execute(f"DROP TRIGGER IF EXISTS {name}")
+        conn.commit()
+
+    def enable_trigger(name, sql):
+        if sql:
+            cur.execute(sql)
+            conn.commit()
+
+    # --- Backup original SQL ---
+    sql_1 = get_trigger_sql(trigger_name_1)
+    sql_2 = get_trigger_sql(trigger_name_2)
+
+    try:
+        # Disable both triggers
+        disable_trigger(trigger_name_1)
+        disable_trigger(trigger_name_2)
+
+        # Run the wrapped function
+        result = func(*args, **kwargs)
+
+        # Restore triggers
+        enable_trigger(trigger_name_1, sql_1)
+        enable_trigger(trigger_name_2, sql_2)
+
+        return result
+
+    except Exception as e:
+        # Always attempt to restore triggers
+        try:
+            enable_trigger(trigger_name_1, sql_1)
+        except Exception:
+            pass
+
+        try:
+            enable_trigger(trigger_name_2, sql_2)
+        except Exception:
+            pass
+
+        # Re-raise original error
+        raise e
+
+    finally:
+        conn.close()
+

@@ -6,3 +6,4 @@ pyautogui
 rapidfuzz
 pillow
 pywin32
+psutil

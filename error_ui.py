@@ -68,3 +68,103 @@ def show_error_ui(short: str, error_details: str = None, root: tk.Tk = None):
 
     # ---------- Block until closed ----------
     popup.wait_window()
+
+def ask_yes_no(question: str, root: tk.Tk = None, confirm_text: str = None) -> bool:
+    """
+    Shows a modal Yes/No popup with a question.
+    If confirm_text is provided, user must type it correctly before Yes is accepted.
+    Returns True for Yes, False for No.
+    """
+
+    popup = tk.Toplevel(root)
+    popup.title("Confirm")
+    popup.resizable(False, False)
+    popup.focus_set()
+    popup.attributes("-topmost", True)
+    popup.grab_set()  # modal
+
+    # ---------- Frame ----------
+    frame = ttk.Frame(popup, padding=20)
+    frame.grid(sticky="nsew")
+    frame.columnconfigure(0, weight=1)
+    frame.columnconfigure(1, weight=1)
+
+    # ---------- Question ----------
+    label = ttk.Label(frame, text=question, font=("TkDefaultFont", 11), wraplength=400)
+    label.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 10))
+
+    entry_var = tk.StringVar()
+    error_var = tk.StringVar(value="")
+
+    row = 1
+
+    # ---------- Confirmation Entry (optional) ----------
+    if confirm_text:
+        entry_label = ttk.Label(
+            frame,
+            text=f'Type "{confirm_text}" to confirm:',
+            font=("TkDefaultFont", 10)
+        )
+        entry_label.grid(row=row, column=0, columnspan=2, sticky="we", pady=(0, 5))
+        row += 1
+
+        entry = ttk.Entry(frame, textvariable=entry_var)
+        entry.grid(row=row, column=0, columnspan=2, sticky="we", pady=(0, 5))
+        row += 1
+
+        error_label = ttk.Label(
+            frame,
+            textvariable=error_var,
+            foreground="red",
+            font=("TkDefaultFont", 9)
+        )
+        error_label.grid(row=row, column=0, columnspan=2, sticky="we", pady=(0, 5))
+        row += 1
+
+        entry.focus_set()
+    else:
+        entry = None
+
+    # ---------- Result storage ----------
+    result = {"value": None}
+
+    # ---------- Button Commands ----------
+    def choose_yes():
+        if confirm_text:
+            if entry_var.get() != confirm_text:
+                error_var.set("Confirmation text does not match.")
+                return
+        result["value"] = True
+        popup.destroy()
+
+    def choose_no():
+        result["value"] = False
+        popup.destroy()
+
+    # ---------- Buttons ----------
+    yes_btn = ttk.Button(frame, text="Yes", command=choose_yes)
+    no_btn = ttk.Button(frame, text="No", command=choose_no)
+
+    yes_btn.grid(row=row, column=0, sticky="w", pady=(5, 0))
+    no_btn.grid(row=row, column=1, sticky="e", pady=(5, 0))
+
+    # ---------- Centering ----------
+    def center_popup():
+        popup.update_idletasks()
+        w = popup.winfo_reqwidth()
+        h = popup.winfo_reqheight()
+
+        if root and root.winfo_ismapped():
+            x = root.winfo_rootx() + (root.winfo_width() // 2) - (w // 2)
+            y = root.winfo_rooty() + (root.winfo_height() // 2) - (h // 2)
+        else:
+            x = (popup.winfo_screenwidth() // 2) - (w // 2)
+            y = (popup.winfo_screenheight() // 2) - (h // 2)
+
+        popup.geometry(f"{w}x{h}+{x}+{y}")
+
+    center_popup()
+
+    popup.wait_window()
+    return result["value"]
+

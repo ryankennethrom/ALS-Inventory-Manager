@@ -20,6 +20,8 @@ import entry_helpers
 from tkinter import messagebox
 import pyautogui
 from datetime import date
+import subprocess
+import os
 
 def create_consumables_table(parent):
         consumables = RelationInterface(
@@ -55,7 +57,7 @@ def create_consumables_table(parent):
             exclude_fields_on_update=["CreatedDateTime"],
             exclude_fields_on_create=["id", "CreatedDateTime"],
             title="Consumable Logs",
-            labels=["Logs"]
+            labels=["Logs", "Consumables Only"]
         )
 
         return cons_widg, consumables
@@ -78,74 +80,12 @@ def create_non_consumables_table(parent):
             exclude_fields_on_update=["CreatedDateTime"],
             exclude_fields_on_create=["id", "CreatedDateTime"],
             title="Non-consumable Logs",
-            labels=["Logs"]
+            labels=["Logs", "Nonconsumables Only"]
         )
 
         return non_cons_widg, non_consumables
 
-if False:
-    def stop_if_instance_active():
-        # Make sure one only one process exists
-        mutex_name = "ALS Inventory Manager"
-        kernel32 = ctypes.windll.kernel32
-        mutex = kernel32.CreateMutexW(None, False, mutex_name)
-        last_error = kernel32.GetLastError()
-        ERROR_ALREADY_EXISTS = 183
-
-        if last_error == ERROR_ALREADY_EXISTS:
-            print("Program is already running")
-            sys.exit(0)
-
-    stop_if_instance_active()
-
-    parser = argparse.ArgumentParser(description="ALS Inventory Manager")
-    parser.add_argument(
-        "--test",
-        action="store_true",
-        help="Run in test mode"
-    )
-    args = parser.parse_args()
-
-    VERSION = version
-    TEST_MODE = args.test
-    PROD_MODE = not TEST_MODE
-
-    if TEST_MODE:
-        db_path = "./inventory.db"
-    else:
-        db_path = DB.get_db_path()
-
-    DB.init_db(db_path, test=TEST_MODE)
-
-    latest_deployed = DB.get_latest_app_version(db_path)
-    if latest_deployed < VERSION:
-        DB.set_latest_app_version(db_path, VERSION)
-
-    root = tk.Tk()
-    root.title("Hello")
-
-    label = tk.Label(root, text="Hello")
-    label.pack(padx=20, pady=20)
-
-    root.mainloop()
-
 if __name__ == "__main__":
-# if True:
-    def stop_if_instance_active():
-        # Make sure one only one process exists
-        mutex_name = "ALS Inventory Manager"
-        kernel32 = ctypes.windll.kernel32
-        mutex = kernel32.CreateMutexW(None, False, mutex_name)
-        last_error = kernel32.GetLastError()
-        ERROR_ALREADY_EXISTS = 183
-
-        if last_error == ERROR_ALREADY_EXISTS:
-            print("Program is already running")
-            sys.exit(0)
-
-    stop_if_instance_active()
-
-
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
     parser.add_argument(
         "--test",
@@ -159,19 +99,43 @@ if __name__ == "__main__":
     TEST_MODE = args.test
     PROD_MODE = not TEST_MODE
     
+    if not TEST_MODE:
+        Application.run_every_five_minutes()
+        if not Application.is_allowed_to_run():
+            Application.kill_all_instance()
+            sys.exit()
+
+    def stop_if_instance_active():
+        # Make sure one only one process exists
+        mutex_name = "ALS Inventory Manager"
+        kernel32 = ctypes.windll.kernel32
+        mutex = kernel32.CreateMutexW(None, False, mutex_name)
+        last_error = kernel32.GetLastError()
+        ERROR_ALREADY_EXISTS = 183
+
+        if last_error == ERROR_ALREADY_EXISTS:
+            print("Program is already running")
+            pid = os.getpid()
+            CREATE_NO_WINDOW = 0x08000000
+            subprocess.run([
+                "taskkill",
+                "/F",
+                "/T",
+                "/PID",
+                str(pid)
+            ],creationflags=CREATE_NO_WINDOW)
+
+    stop_if_instance_active()   
 
     if TEST_MODE:
-        db_path = "./dist/data.db"
+        db_path = "./dist/Resources/Database/data.db"
     else:
-        default_path = "./data.db"
-        if os.path.exists(default_path):
-            db_path = default_path
-        else:
-            db_path = DB.get_db_path() 
+        default_path = "./Resources/Database/data.db"
+        db_path = default_path
         Application.save(BackupFolderName, f"v{VERSION}")
         Application.run_on_startup(True)
 
-    # DB.init_db(db_path, test=TEST_MODE)
+    DB.PATH = db_path
 
     def non_cons_log_content(notebook, root):
         # -------------------- Main Window --------------------
@@ -197,7 +161,7 @@ if __name__ == "__main__":
             exclude_fields_on_update=["CreatedDateTime"],
             exclude_fields_on_create=["id", "CreatedDateTime"],
             title="Non-consumable Logs",
-            labels=["Logs"]
+            labels=["Logs", "Nonconsumables Only"]
         )
         
         non_cons_widg.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
@@ -246,7 +210,7 @@ if __name__ == "__main__":
             exclude_fields_on_update=["CreatedDateTime"],
             exclude_fields_on_create=["id", "CreatedDateTime"],
             title="Consumable Logs",
-            labels=["Logs"]
+            labels=["Logs", "Consumables Only"]
         )
 
         cons_widg.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
@@ -350,7 +314,7 @@ if __name__ == "__main__":
         dangerouslyLow = RelationWidget(
             inner_frame,
             dangerouslyLowRI,
-            labels=["Analytics"],
+            labels=["Analytics", "Without Discontinued"],
             min_height=int(height*0.3),
             is_view=True,
             title="Without Discontinued"
@@ -368,7 +332,7 @@ if __name__ == "__main__":
         reorder = RelationWidget(
             inner_frame,
             reorder_ri,
-            labels=["Analytics"],
+            labels=["Analytics", "Without Discontinued"],
             min_height=int(height*0.3),
             exclude_fields_on_show=[],
             is_view=True,
@@ -378,7 +342,7 @@ if __name__ == "__main__":
         consumablesReport = RelationWidget(
             inner_frame,
             consumablesReportRI,
-            labels=["Analytics"],
+            labels=["Analytics", "Consumables Only"],
             min_height=int(height*0.3),
             exclude_fields_on_show=[],
             is_view=True,
@@ -756,7 +720,7 @@ if __name__ == "__main__":
             barcode_entry.focus()
             registry.destroy_all_popups()
 
-        attach_helper(root, "ProductName", product_entry, productsTotalSupplyRI.db_path, productsTotalSupplyRI.relation_name, productsTotalSupply.all_columns, productsTotalSupply.all_column_types)
+        attach_helper(root, "ProductName", product_entry, productsTotalSupplyRI.db_path, ["Without Discontinued"], productsTotalSupply.all_columns, productsTotalSupply.all_column_types)
 
         product_entry.bind("<Return>", on_product_entered)
         product_entry.bind("<Tab>", on_product_entered)

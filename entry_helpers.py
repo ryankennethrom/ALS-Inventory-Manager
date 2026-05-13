@@ -10,6 +10,7 @@ import win32com.client
 import pythoncom
 import time
 from PIL import Image
+import random
 
 _registry = []
 
@@ -579,7 +580,123 @@ def attach_filepath_manager(entry):
         entry.bind("<Return>", lambda e: dropdown.destroy(), add='+')
     return entry.bind("<FocusIn>", show_dropdown)
 
-    
+def attach_barcode_options(entry):
+    dropdown = None
+
+    def show_dropdown(event=None):
+        nonlocal dropdown
+        # Prevent multiple popups
+        if dropdown and dropdown.winfo_exists():
+            return
+
+        parent = entry.winfo_toplevel()
+
+        dropdown = tk.Toplevel(parent)
+        dropdown.overrideredirect(True)
+        dropdown.lift()
+
+        # Position under entry
+        def reposition_dropdown(event=None):
+            if dropdown and dropdown.winfo_exists():
+                x = entry.winfo_rootx()
+                y = entry.winfo_rooty() + entry.winfo_height()
+                dropdown.geometry(f"+{x}+{y}")
+
+        reposition_dropdown()
+        parent.bind("<Configure>", reposition_dropdown)
+
+        # ---------------- ADDED: frame + scrollbar ----------------
+        frame = tk.Frame(dropdown)
+
+        scrollbar = tk.Scrollbar(frame)
+
+
+        listbox = tk.Listbox(
+            frame,
+            height=8,  # LIMIT VISIBLE ROWS
+            yscrollcommand=scrollbar.set
+        )
+
+        scrollbar.config(command=listbox.yview)
+        # ----------------------------------------------------------
+        MAX_VISIBLE = 1
+        MIN_VISIBLE = 1
+        def update_list(event=None):
+            if not dropdown or not dropdown.winfo_exists():
+                return
+            dropdown.lift()
+            listbox.delete(0, tk.END)
+
+            items = ["Generate default"]
+            for item in items:
+                listbox.insert(tk.END, item)
+
+            visible_rows = max(MIN_VISIBLE, min(len(items), MAX_VISIBLE))
+            listbox.config(height=visible_rows)
+
+        update_list()
+        frame.pack(fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        listbox.pack(side="left", fill="both", expand=True)
+
+        # Handle selection
+        def on_button_down(event=None):
+            if listbox.curselection():
+                value = listbox.get(listbox.curselection()[0])
+                if value == "Generate default":
+                    digits = list("0123456789")
+                    random.shuffle(digits)
+                    random_part = "".join(digits[:6])   # pick first 6 digits (or however many you want)
+                    data = "NOTYETSET" + random_part 
+                    entry.delete(0, tk.END)
+                    entry.insert(0, data)
+                else:
+                    raise Exception("File Path entry helper doesn't recognize a user's input")
+                entry.focus_set()
+                dropdown.destroy()
+                pyautogui.press("enter")
+
+        def close_if_out_of_focus(e):
+            try:
+                x = int(event.x_root)
+                y = int(event.y_root)
+
+                popup = dropdown
+                px = int(popup.winfo_rootx())
+                py = int(popup.winfo_rooty())
+                pw = int(popup.winfo_width())
+                ph = int(popup.winfo_height())
+
+            except Exception:
+                dropdown.destroy()
+                return
+
+            if px <= x <= px + pw and py <= y <= py + ph:
+                return
+            else:
+                dropdown.destroy()
+
+        def focus_listbox(e):
+            if dropdown.focus_get() != listbox:
+                listbox.focus_set()
+                listbox.selection_clear(0, tk.END)
+                listbox.activate(0)
+                listbox.selection_set(0)
+                listbox.see(0)
+
+        def unfocus_listbox(e):
+            entry.focus_set()
+            return "break"
+
+        parent.bind("<Button-1>", close_if_out_of_focus)
+        parent.bind("<Down>", focus_listbox)
+        listbox.bind("<Up>", unfocus_listbox)
+        listbox.bind("<Button-1>", on_button_down)
+        listbox.bind("<Return>", on_button_down)
+        parent.bind("<Tab>", lambda e: dropdown.destroy())
+        parent.bind("<Unmap>", lambda e: dropdown.destroy())
+        entry.bind("<Return>", lambda e: dropdown.destroy(), add='+')
+    return entry.bind("<FocusIn>", show_dropdown)
 
 def unattach_all():
     for entry_config in _registry:
@@ -587,8 +704,8 @@ def unattach_all():
         if entry.winfo_exists():
             entry.unbind("<FocusIn>")
 
-def attach_helper(root, entry_name, entry, db_path, relation_name, all_columns, all_column_types):
-    entry_config = (root, entry_name, entry, db_path, relation_name, all_columns, all_column_types)  
+def attach_helper(root, entry_name, entry, db_path, labels, all_columns, all_column_types):
+    entry_config = (root, entry_name, entry, db_path, labels, all_columns, all_column_types)  
     
     if entry_config not in _registry:
         _registry.append(entry_config)
@@ -597,7 +714,7 @@ def attach_helper(root, entry_name, entry, db_path, relation_name, all_columns, 
     if all_column_types[col] == "date":
         attach_datepicker(entry)
     if col == "ProductName":
-        attach_fuzzy_list(entry, DB.get_productnames(db_path, relation_name))
+        attach_fuzzy_list(entry, DB.get_productname_recommendations(db_path, labels))
     elif col == "Station":
         attach_fuzzy_list(entry, DB.get_stations(db_path))
     elif col == "IsConsumable" or col == "IsDiscontinued":
@@ -606,6 +723,8 @@ def attach_helper(root, entry_name, entry, db_path, relation_name, all_columns, 
         attach_fuzzy_list(entry, ["Received", "Opened"])
     elif col == "CoaFilePath":
         attach_filepath_manager(entry)
+    elif col == "BarcodeContains":
+        attach_barcode_options(entry)
 
 def update_helpers():
     unattach_all()

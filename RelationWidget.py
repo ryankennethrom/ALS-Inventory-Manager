@@ -81,6 +81,7 @@ class RelationWidget(ttk.LabelFrame):
         self.is_view = is_view
         self.min_width = min_width
         self.min_height = min_height
+        self.labels = labels
         registry.register(self,labels)
         self.popup = None
         self.advance_button = None
@@ -150,7 +151,7 @@ class RelationWidget(ttk.LabelFrame):
         self.search_entry = ttk.Entry(self.search_frame)
         self.search_entry.grid(row=0, column=0, sticky="ew", padx=5)
 
-        attach_helper(self.master, self.relation.simple_search_field, self.search_entry, self.relation.db_path, self.relation.relation_name, self.all_columns, self.all_column_types)
+        attach_helper(self.master, self.relation.simple_search_field, self.search_entry, self.relation.db_path, self.labels, self.all_columns, self.all_column_types)
         
         self.search_button = ttk.Button(self.search_frame, text=self.relation.simple_search_field, command=self.search)
         self.search_button.grid(row=0, column=1, sticky="ew", padx=5)
@@ -499,7 +500,7 @@ class RelationWidget(ttk.LabelFrame):
                 entry.grid(row=row, column=1, columnspan=2, padx=5)
                 widgets[col] = (entry, None)
             
-            attach_helper(self.master, col, entry, self.relation.db_path, self.relation.relation_name, self.all_columns, self.all_column_types)
+            attach_helper(self.master, col, entry, self.relation.db_path, self.labels, self.all_columns, self.all_column_types)
 
             row += 1
 
@@ -713,7 +714,7 @@ class RelationWidget(ttk.LabelFrame):
             
             update_widgets[col] = {"Label":label, "Entry":entry}
 
-            attach_helper(self.master, col, entry, self.relation.db_path, self.relation.relation_name, self.all_columns, self.all_column_types)
+            attach_helper(self.master, col, entry, self.relation.db_path, self.labels, self.all_columns, self.all_column_types)
         self.update_widgets = update_widgets 
 
         def save_changes(event=None):
@@ -792,7 +793,7 @@ class RelationWidget(ttk.LabelFrame):
             label = ttk.Label(frame, text=f"{col}:")
             label.grid(row=i, column=0, sticky="e", pady=2)
             entry = ttk.Entry(frame)
-            attach_helper(self.master, col, entry, self.relation.db_path, self.relation.relation_name, self.all_columns, self.all_column_types)
+            attach_helper(self.master, col, entry, self.relation.db_path, self.labels, self.all_columns, self.all_column_types)
             entry.grid(row=i, column=1, pady=2, padx=5)
             entries[col] = entry
             add_widgets[col] = {"Label":label, "Entry" : entry}
