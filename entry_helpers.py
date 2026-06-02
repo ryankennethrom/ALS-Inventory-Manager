@@ -704,7 +704,7 @@ def unattach_all():
         if entry.winfo_exists():
             entry.unbind("<FocusIn>")
 
-def attach_helper(root, entry_name, entry, db_path, labels, all_columns, all_column_types):
+def attach_helper(root, entry_name, entry, db_path, labels, all_columns, all_column_types, filters=[]):
     entry_config = (root, entry_name, entry, db_path, labels, all_columns, all_column_types)  
     
     if entry_config not in _registry:
@@ -714,7 +714,7 @@ def attach_helper(root, entry_name, entry, db_path, labels, all_columns, all_col
     if all_column_types[col] == "date":
         attach_datepicker(entry)
     if col == "ProductName":
-        attach_fuzzy_list(entry, DB.get_productname_recommendations(db_path, labels))
+        attach_fuzzy_list(entry, DB.get_productname_recommendations(db_path, labels, filters))
     elif col == "Station":
         attach_fuzzy_list(entry, DB.get_stations(db_path))
     elif col == "IsConsumable" or col == "IsDiscontinued":
@@ -725,6 +725,9 @@ def attach_helper(root, entry_name, entry, db_path, labels, all_columns, all_col
         attach_filepath_manager(entry)
     elif col == "BarcodeContains":
         attach_barcode_options(entry)
+
+def unattach_helpers(entry):
+    entry.unbind("<FocusIn>")
 
 def update_helpers():
     unattach_all()

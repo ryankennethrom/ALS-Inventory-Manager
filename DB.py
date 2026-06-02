@@ -136,6 +136,40 @@ def recreate_dangerously_low(db_path):
     conn.commit()
     conn.close()
 
+def recreate_on_emergency(db_path):
+    conn = connect(db_path)
+    cursor = conn.cursor()
+    
+    relation_name = "OnEmergency"
+
+    cursor.execute(f""" DROP VIEW IF EXISTS {relation_name}; """)
+
+    cursor.execute(f"""
+    CREATE VIEW IF NOT EXISTS {relation_name} AS
+    SELECT c.ProductName, c.TotalQuantityAvailable, p.IsConsumable, p.UnitOfMeasure, p.Station, p.EmergencyCount
+    FROM ConsumablesAvailableTotaled c
+    LEFT JOIN Products p ON c.ProductName = p.ProductName
+    WHERE c.TotalQuantityAvailable <= p.EmergencyCount AND p.EmergencyCount > 0 AND p.IsDiscontinued = 'n'
+
+    UNION ALL
+
+    SELECT
+        p.ProductName,
+        COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
+        p.IsConsumable,
+        p.UnitOfMeasure,
+        p.Station,
+        p.EmergencyCount
+    FROM Products p
+    LEFT JOIN AvailableNonConsumables n
+        ON n.ProductName = p.ProductName
+    WHERE p.IsConsumable = 'n'
+      AND COALESCE(n.TotalQuantityAvailable, 0) <= p.EmergencyCount AND p.EmergencyCount > 0 AND p.IsDiscontinued = 'n';
+    """)
+
+    conn.commit()
+    conn.close()
+
 def recreate_products_total_supply(db_path):
     conn = connect(db_path)
     cursor = conn.cursor()
@@ -630,7 +664,8 @@ def init_db(db_path, test=False):
 
 
     recreate_dangerously_low(db_path)
-    recreate_reorder_list(db_path) 
+    recreate_reorder_list(db_path)
+    recreate_on_emergency(db_path)
     
     if test:
         cursor.execute(""" DROP VIEW IF EXISTS OutOfStock; """)
@@ -792,14 +827,12 @@ def get_query(relation_interface, db_path):
     conn.close()
     return query, where_params
 
-def get_productname_recommendations(db_path, group_names):
+def get_productname_recommendations(db_path, group_names, filters=[]):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
 
             conditions = []
-
-            group_names
 
             if "Without Discontinued" in group_names: 
                 conditions.append("IsDiscontinued = 'n'")
@@ -808,6 +841,9 @@ def get_productname_recommendations(db_path, group_names):
                 conditions.append("IsConsumable = 'n'")
             elif "Consumables Only" in group_names:
                 conditions.append("IsConsumable = 'y'")
+
+            for condition in filters:
+                conditions.append(condition)
 
             where_clause = ""
             if conditions:
@@ -823,6 +859,31 @@ def get_productname_recommendations(db_path, group_names):
         return []
 
     return get_productnames(db_path, group_name)
+
+
+def get_barcode_and_station(db_path, product_name):
+    """
+    Returns (Barcode, Station) for a given product name.
+    If not found, returns (None, None).
+    """
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT BarcodeContains, Station
+                FROM Products
+                WHERE ProductName = ?
+                LIMIT 1
+            """, (product_name,))
+
+            row = cursor.fetchone()
+            if row:
+                return row[0], row[1]  # (Barcode, Station)
+            return None, None
+
+    except Exception as e:
+        print("Error fetching barcode and station:", e)
+        return None, None
 
 def get_stations(db_path):
         """

@@ -22,6 +22,8 @@ import pyautogui
 from datetime import date
 import subprocess
 import os
+from relation_widget_builder import RelationWidgetBuilder
+from titled_grids_builder import TitledGridsBuilder
 
 def create_consumables_table(parent):
         consumables = RelationInterface(
@@ -86,6 +88,7 @@ def create_non_consumables_table(parent):
         return non_cons_widg, non_consumables
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
     parser.add_argument(
         "--test",
@@ -100,10 +103,10 @@ if __name__ == "__main__":
     PROD_MODE = not TEST_MODE
     
     if not TEST_MODE:
-        Application.run_every_five_minutes()
         if not Application.is_allowed_to_run():
             Application.kill_all_instance()
             sys.exit()
+        Application.run_helper_if_not_running()
 
     def stop_if_instance_active():
         # Make sure one only one process exists
@@ -136,6 +139,8 @@ if __name__ == "__main__":
         Application.run_on_startup(True)
 
     DB.PATH = db_path
+    DB.init_db(db_path)
+    Application.DatabasePath = db_path
 
     def non_cons_log_content(notebook, root):
         # -------------------- Main Window --------------------
@@ -400,6 +405,25 @@ if __name__ == "__main__":
             text="Consumables Report",
             font=("Segoe UI", 14, "bold")
         )
+
+        emergency_widget = ( 
+                            RelationWidgetBuilder(db_path=db_path, parent=inner_frame)
+                            .default_widget(title="Without Discontinued", is_view=True, minimum_height=200, relation_name="OnEmergency", labels=["Analytics"])
+                            .default_results_highlight(color="#FFA07A")
+                            .build()
+        )
+
+        ( 
+
+         TitledGridsBuilder(inner_frame)
+         .add_section_bottom(emergency_widget, heading="Emergency")
+         # .add_section_bottom(dangerouslyLow, heading="DangerouslyLow")
+         .add_section_bottom(reorder, heading="Low")
+         .add_section_bottom(productsTotalSupply, heading="All")
+         .add_section_bottom(consumablesReport, heading="Consumables Report")
+         .build()
+
+         )
         
         reorder_ri.on_search_clicked_original = reorder_ri.on_search_clicked
         def on_low_supply_tables_update():
@@ -418,23 +442,23 @@ if __name__ == "__main__":
             return out 
         dangerouslyLowRI.on_search_clicked = on_danger_low_tables_update
         
-        dangerously_low_header.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
-        dangerouslyLow.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5,20))
+        # dangerously_low_header.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+        # dangerouslyLow.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5,20))
 
-        reorder_header.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
-        reorder.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 20))
+        # reorder_header.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+        # reorder.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 20))
 
-        all_header.grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
-        productsTotalSupply.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
+        # all_header.grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
+        # productsTotalSupply.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
 
-        consumables_report_header.grid(row=6, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
-        consumablesReport.grid(row=7, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
+        # consumables_report_header.grid(row=6, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
+        # consumablesReport.grid(row=7, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
         
-        inner_frame.grid_columnconfigure(0, weight=1)
-        inner_frame.grid_columnconfigure(1, weight=1)
+        # inner_frame.grid_columnconfigure(0, weight=1)
+        # inner_frame.grid_columnconfigure(1, weight=1)
 
-        for i in range(7):
-            inner_frame.grid_rowconfigure(i, weight=1)
+        # for i in range(7):
+        #    inner_frame.grid_rowconfigure(i, weight=1)
         
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
@@ -488,15 +512,20 @@ if __name__ == "__main__":
         barcode_entry = ttk.Entry(input_frame)
         barcode_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
+        # Station
+        ttk.Label(input_frame, text="Station:", font=label_font)\
+            .grid(row=1, column=0, padx=5, pady=5, sticky="w")
         
+        station_entry = ttk.Entry(input_frame)
+        station_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
         # Product Name
         ttk.Label(input_frame, text="Product Name:", font=label_font)\
-            .grid(row=1, column=0, padx=5, pady=5, sticky="w")
+            .grid(row=2, column=0, padx=5, pady=5, sticky="w")
 
+                
         product_entry = ttk.Entry(input_frame)
-        product_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-
+        product_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
         # ---------- Result Frame (vertical buttons) ----------
         action_frame = ttk.LabelFrame(left_frame, text="Available actions", padding=10)
@@ -539,17 +568,6 @@ if __name__ == "__main__":
             title="Total Quantity Available"
         )
 
-
-        def populate_and_invoke_product_entry(event):
-            root.config(cursor="watch")
-            product_entry.delete(0, tk.END)
-            product_entry.insert(0, DB.get_product_name(db_path, barcode_entry.get()))
-            product_entry.focus_set()
-            pyautogui.press("enter")
-            root.config(cursor="")
-
-        barcode_entry.bind("<Return>", lambda event: run_with_error_handling(root, populate_and_invoke_product_entry, event))
-        barcode_entry.bind("<Tab>", lambda event: run_with_error_handling(root, populate_and_invoke_product_entry, event))
 
         productsTotalSupply.grid(row=0, column=1, sticky="nsew", padx=10)
 
@@ -658,62 +676,74 @@ if __name__ == "__main__":
             consumables_widget.hold_popup(consumables_widget.popup)
 
         def on_product_entered(event=None):
-            product_name=product_entry.get()
-            root.config(cursor="watch")
-            for widg in button_widgets:
-                widg.destroy()
-            non_cons_result_frame.grid_remove()
-            consumables_widget.grid_remove()
-
-            is_consumable = False
             try:
-                is_consumable = DB.is_product_consumable(productsTotalSupplyRI.db_path, product_entry.get())
-            except Exception:
-                root.config(cursor="")
-                return
+                product_name=product_entry.get()
+                root.config(cursor="watch")
 
-            if not is_consumable:
-                productsTotalSupply.advanced_search(productsTotalSupply.advance_button, silent=True)
-                productsTotalSupply.advanced_search_widgets["ProductName"][1].set("exactly")
-                productsTotalSupply.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
-                productsTotalSupply.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
-                productsTotalSupply.apply_filters_button.invoke()
-
-                non_consumables_widget.advanced_search(non_consumables_widget.advance_button, silent=True)
-                non_consumables_widget.advanced_search_widgets["ProductName"][1].set("exactly")
-                non_consumables_widget.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
-                non_consumables_widget.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
-                non_consumables_widget.apply_filters_button.invoke()
-
-                non_cons_result_frame.grid()
+                barcode, station = DB.get_barcode_and_station(Application.DatabasePath, product_name)
                 
+                barcode_entry.delete(0, tk.END)
+                barcode_entry.insert(0, barcode)
+                
+                station_entry.delete(0, tk.END)
+                station_entry.insert(0, station)
+
                 for widg in button_widgets:
                     widg.destroy()
+                non_cons_result_frame.grid_remove()
+                consumables_widget.grid_remove()
 
-                buttons = [
-                    ("Set Fetch Rule", set_current_barcode),
-                    ("Receive", receive_non_cons),
-                ]
+                is_consumable = False
+                try:
+                    is_consumable = DB.is_product_consumable(productsTotalSupplyRI.db_path, product_entry.get())
+                except Exception:
+                    root.config(cursor="")
+                    return
 
-                if DB.is_non_cons_product_openable(db_path, product_entry.get()):
-                    buttons.append(("Open", open_non_cons))
+                if not is_consumable:
+                    productsTotalSupply.advanced_search(productsTotalSupply.advance_button, silent=True)
+                    productsTotalSupply.advanced_search_widgets["ProductName"][1].set("exactly")
+                    productsTotalSupply.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
+                    productsTotalSupply.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
+                    productsTotalSupply.apply_filters_button.invoke()
 
-                for label, cmd in buttons:
-                    btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
-                    btn.pack(anchor="w", pady=3, fill="x")
-                    button_widgets.append(btn)
-            else:
-                consumables_widget.advanced_search(non_consumables_widget.advance_button, silent=True)
-                consumables_widget.advanced_search_widgets["ProductName"][1].set("exactly")
-                consumables_widget.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
-                consumables_widget.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
-                consumables_widget.apply_filters_button.invoke()
+                    non_consumables_widget.advanced_search(non_consumables_widget.advance_button, silent=True)
+                    non_consumables_widget.advanced_search_widgets["ProductName"][1].set("exactly")
+                    non_consumables_widget.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
+                    non_consumables_widget.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
+                    non_consumables_widget.apply_filters_button.invoke()
 
-                consumables_widget.grid()
-                build_available_cons_actions(product_name, barcode_entry.get())
+                    non_cons_result_frame.grid()
+                    
+                    for widg in button_widgets:
+                        widg.destroy()
 
-            pyautogui.press("Tab")
-            root.config(cursor="")
+                    buttons = [
+                        ("Set Fetch Rule", set_current_barcode),
+                        ("Receive", receive_non_cons),
+                    ]
+
+                    if DB.is_non_cons_product_openable(db_path, product_entry.get()):
+                        buttons.append(("Open", open_non_cons))
+
+                    for label, cmd in buttons:
+                        btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
+                        btn.pack(anchor="w", pady=3, fill="x")
+                        button_widgets.append(btn)
+                else:
+                    consumables_widget.advanced_search(non_consumables_widget.advance_button, silent=True)
+                    consumables_widget.advanced_search_widgets["ProductName"][1].set("exactly")
+                    consumables_widget.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
+                    consumables_widget.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
+                    consumables_widget.apply_filters_button.invoke()
+
+                    consumables_widget.grid()
+                    build_available_cons_actions(product_name, barcode_entry.get())
+
+                root.config(cursor="")
+            except Exception as e:
+                root.config(cursor="")
+                raise
 
         # ---------- Tab Change Cleanup ----------
         def on_tab_changed(event):
@@ -721,10 +751,49 @@ if __name__ == "__main__":
             registry.destroy_all_popups()
 
         attach_helper(root, "ProductName", product_entry, productsTotalSupplyRI.db_path, ["Without Discontinued"], productsTotalSupply.all_columns, productsTotalSupply.all_column_types)
+        attach_helper(root, "Station", station_entry, productsTotalSupplyRI.db_path, [], productsTotalSupply.all_columns, productsTotalSupply.all_column_types)
+
+        def clear_fields():
+            barcode_entry.delete(0, "end")
+            station_entry.delete(0, "end")
+            product_entry.delete(0, "end")
+
+            entry_helpers.unattach_helpers(product_entry)
+            attach_helper(root, "ProductName", product_entry, productsTotalSupplyRI.db_path, ["Without Discontinued"], productsTotalSupply.all_columns, productsTotalSupply.all_column_types)
+
+            non_cons_result_frame.grid_remove()
+            consumables_widget.grid_remove()
+
+            for widg in button_widgets:
+                    widg.destroy()
+
+        clear_button = ttk.Button(input_frame, text="Clear", command=clear_fields)
+        clear_button.grid(row=3, column=1, padx=5, pady=5, sticky="e")
+
+        def on_station_entered():
+            new_station = station_entry.get()
+            clear_fields()
+            station_entry.insert(0, new_station)
+            entry_helpers.unattach_helpers(product_entry)
+            attach_helper(root, "ProductName", product_entry, productsTotalSupplyRI.db_path, ["Without Discontinued"], productsTotalSupply.all_columns, productsTotalSupply.all_column_types, filters=([f"Station = '{station_entry.get()}'"] if station_entry.get() != "" else []))
+            product_entry.focus_set()
+
+        def populate_and_invoke_product_entry(event):
+            root.config(cursor="watch")
+            product_entry.delete(0, tk.END)
+            product_entry.insert(0, DB.get_product_name(db_path, barcode_entry.get()))
+            on_product_entered()
+            root.config(cursor="")
+
+        barcode_entry.bind("<Return>", lambda event: run_with_error_handling(root, populate_and_invoke_product_entry, event))
+        barcode_entry.bind("<Tab>", lambda event: run_with_error_handling(root, populate_and_invoke_product_entry, event))
+
+        station_entry.bind("<Return>", lambda event: on_station_entered())
+        station_entry.bind("<Tab>", lambda event: on_station_entered())
 
         product_entry.bind("<Return>", on_product_entered)
         product_entry.bind("<Tab>", on_product_entered)
-        # registry.on_table_update(callback=lambda: build_available_cons_actions(product_entry.get(), barcode_entry.get()), parents={"Results"})
+        
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
     
     def nav(root, db_path):

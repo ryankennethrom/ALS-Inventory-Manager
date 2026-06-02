@@ -67,7 +67,7 @@ def generate_random_name(length=6):
     return f"PROD-{random_part}"
 
 class RelationWidget(ttk.LabelFrame):
-    def __init__(self, master, relation_interface, labels=[], min_width=400, min_height=200, is_view=False, exclude_fields_on_update=[], exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
+    def __init__(self, master, relation_interface, filter_results_color="#ADD8E6", labels=[], min_width=400, min_height=200, is_view=False, exclude_fields_on_update=[], exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
         super().__init__(master, text=title, padding=padding, **kwargs)
         self.title=title
         self.relation = relation_interface
@@ -83,6 +83,7 @@ class RelationWidget(ttk.LabelFrame):
         self.min_height = min_height
         self.labels = labels
         registry.register(self,labels)
+        self.style_id = f"RelationWidget{self.id}.Treeview"
         self.popup = None
         self.advance_button = None
         self.advanced_search_widgets = None
@@ -94,13 +95,13 @@ class RelationWidget(ttk.LabelFrame):
         self.create_widgets()
         self.update_table()
         self.apply_filters_button = None
+        self.filter_results_color = filter_results_color
         
-
         style = ttk.Style()
-        style.configure("LightGrey.Treeview",
-                        background="#ADD8E6",       
-                        fieldbackground="#ADD8E6",
-                        bordercolor="#ADD8E6",
+        style.configure(self.style_id,
+                        background=self.filter_results_color,       
+                        fieldbackground=self.filter_results_color,
+                        bordercolor=self.filter_results_color,
                         foreground="black")
         
         def resize_columns(tree, results):
@@ -659,6 +660,12 @@ class RelationWidget(ttk.LabelFrame):
         self.relation.on_filter_changed(self.relation.default_filters)
         self.relation.on_search_clicked()
         self.update_table()
+
+    def highlight_items(self):
+        self.tree.configure(style=self.style_id)
+
+    def reset_highlight_items_to_default(self):
+        self.tree.configure(style="Treeview")
                              
     def update_table(self):
         for row in self.tree.get_children():
@@ -669,9 +676,9 @@ class RelationWidget(ttk.LabelFrame):
         widget_status = []
         if self.relation.is_filter_active():
             widget_status.append("(Filtered)")
-            self.tree.configure(style="LightGrey.Treeview")
+            self.highlight_items()
         else:
-            self.tree.configure(style="Treeview")
+            self.reset_highlight_items_to_default()
 
         self.results_number.configure(text=f"Results : {len(self.relation.curr_results)}")
         self.configure(text=f"{self.title} {" ".join(widget_status)}") 

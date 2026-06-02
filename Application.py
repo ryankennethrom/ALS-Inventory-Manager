@@ -12,6 +12,44 @@ import win32con
 class Application:
     EXE_NAME = "ALS Inventory Manager.exe"
     DatabasePath = "Resources/Database/data.db"
+    HELPER_NAME = "ALS Inventory Helper.exe"
+    HELPER_PATH = os.path.join("Resources", "Helper", HELPER_NAME)
+
+    @staticmethod
+    def delete_task_if_exists():
+        """
+        Deletes a Windows Scheduled Task with the same name as the EXE.
+        Safe to call even if the task does not exist.
+        """
+        task_name = "ALS_Inventory_Manager_5min"
+
+        # Check if task exists
+        check_cmd = ["schtasks", "/Query", "/TN", task_name]
+        result = subprocess.run(check_cmd, capture_output=True, text=True)
+
+        if "ERROR:" not in result.stdout:
+            print(f"Scheduled task '{task_name}' found. Deleting...")
+            subprocess.run(["schtasks", "/Delete", "/TN", task_name, "/F"])
+        else:
+            print(f"No scheduled task named '{task_name}' found.")
+    
+    @staticmethod
+    def run_helper_if_not_running():
+        """
+        Starts ALS Inventory Helper if it is not already running.
+        """
+        # Check if helper is running
+        for proc in psutil.process_iter(['name']):
+            if proc.info['name'] == Application.HELPER_NAME:
+                print("Helper already running.")
+                return
+
+        # Launch helper
+        if os.path.exists(Application.HELPER_PATH):
+            print("Starting ALS Inventory Helper...")
+            subprocess.Popen([Application.HELPER_PATH])
+        else:
+            print(f"Helper not found at: {Application.HELPER_PATH}")
 
     @staticmethod
     def run_every_five_minutes():
