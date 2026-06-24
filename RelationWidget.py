@@ -67,7 +67,7 @@ def generate_random_name(length=6):
     return f"PROD-{random_part}"
 
 class RelationWidget(ttk.LabelFrame):
-    def __init__(self, master, relation_interface, filter_results_color="#ADD8E6", labels=[], min_width=400, min_height=200, is_view=False, exclude_fields_on_update=[], exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
+    def __init__(self, master, relation_interface, add_item_title="Add A New Item", filter_results_color="#ADD8E6", labels=[], min_width=400, min_height=200, is_view=False, exclude_fields_on_update=[], exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
         super().__init__(master, text=title, padding=padding, **kwargs)
         self.title=title
         self.relation = relation_interface
@@ -82,6 +82,7 @@ class RelationWidget(ttk.LabelFrame):
         self.min_width = min_width
         self.min_height = min_height
         self.labels = labels
+        self.add_item_title = add_item_title
         registry.register(self,labels)
         self.style_id = f"RelationWidget{self.id}.Treeview"
         self.popup = None
@@ -90,8 +91,10 @@ class RelationWidget(ttk.LabelFrame):
         self.search_entry = None
         self.search_button = None
         self.add_item_button = None
+        self.update_item_button = None
         self.add_button = None
         self.add_entries = None
+        self.update_entries = None
         self.create_widgets()
         self.update_table()
         self.apply_filters_button = None
@@ -699,10 +702,42 @@ class RelationWidget(ttk.LabelFrame):
             if self.relation.curr_results[n-1-i][field] == value:
                 self.open_update_popup(n-1-i, self.relation.curr_results[n-1-i])
 
+    def get_first_row_from_bottom(self, field, value):
+        """
+        Return the index of the first matching row when searching
+        from the BOTTOM of curr_results upward.
+        Returns None if not found.
+        """
+        n = len(self.relation.curr_results)
+        for i in range(n - 1, -1, -1):  # bottom → top
+            if self.relation.curr_results[i][field] == value:
+                return i
+        return None
+    
+    def get_update_item_title(self):
+        return "Update Item"
+
+    def enter_add_entry_value(self, entry_name, new_value):
+        if self.popup is None or not self.popup.winfo_exists():
+            raise Exception("Add item popup must be invoked() before enter_add_entry_value() can be used.")
+        self.add_entries[entry_name].delete(0, tk.END)
+        self.add_entries[entry_name].insert(0, new_value)
+
+    def enter_update_entry_value(self, entry_name, new_value):
+        if self.popup is None or not self.popup.winfo_exists():
+            raise Exception("Add item popup must be invoked() before enter_update_entry_value() can be used.")
+        self.update_entries[entry_name].delete(0, tk.END)
+        self.update_entries[entry_name].insert(0, new_value)
+    
+    def append_update_entry_value(self, entry_name, value):
+        if self.popup is None or not self.popup.winfo_exists():
+            raise Exception("Add item popup must be invoked() before append_update_entry_value() can be used.")
+        self.update_entries[entry_name].insert(tk.END, value)
+
     def open_update_popup(self, item_index, data):
         if self.popup is not None and self.popup.winfo_exists():
             return
-        self.popup = self.create_popup(title="Update Item")
+        self.popup = self.create_popup(title=self.get_update_item_title())
 
         frame = ttk.Frame(self.popup, padding=20)
         frame.pack(fill="both", expand=True)
@@ -723,6 +758,7 @@ class RelationWidget(ttk.LabelFrame):
 
             attach_helper(self.master, col, entry, self.relation.db_path, self.labels, self.all_columns, self.all_column_types)
         self.update_widgets = update_widgets 
+        self.update_entries = entries
 
         def save_changes(event=None):
             new_data = {col: entries[col].get() for col in data.keys() if col in entries}
@@ -767,6 +803,7 @@ class RelationWidget(ttk.LabelFrame):
         update_btn.pack(side="left")
         delete_btn.pack(side="left", padx=(5,0))  # small space between buttons
 
+        self.update_item_button = update_btn
 
         # Center popup over parent
         self.popup.update_idletasks()
@@ -784,10 +821,13 @@ class RelationWidget(ttk.LabelFrame):
         self.update_table()
         self.tree.focus_set()
 
+    def get_add_item_title(self):
+        return self.add_item_title
+
     def add(self):
         if self.popup is not None and self.popup.winfo_exists():
             return
-        self.popup = self.create_popup(title="Add A New Item")
+        self.popup = self.create_popup(title=self.get_add_item_title())
 
         frame = ttk.Frame(self.popup, padding=20)
         frame.pack()
@@ -845,6 +885,12 @@ class RelationWidget(ttk.LabelFrame):
 
         self.popup.deiconify()
         self.hold_popup(self.popup)
+
+    def click_add_new_item(self):
+        self.add_item_button.invoke()
+
+    def click_update_item(self):
+        self.update_item_button.invoke()
 
     def delete(self):
         def on_delete():

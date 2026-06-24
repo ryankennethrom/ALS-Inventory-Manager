@@ -193,6 +193,24 @@ def recreate_products_total_supply(db_path):
     conn.commit()
     conn.close()
 
+def get_product_quantity(db_path, product_name):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT TotalQuantityAvailable
+        FROM ProductsTotalSupply
+        WHERE ProductName = ?
+    """, (product_name,))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if row is None:
+        return None  # product not found
+
+    return row[0]
+
 
 def recreate_reorder_list(db_path):
     conn = connect(db_path)
@@ -940,6 +958,29 @@ def is_product_consumable(db_path, name):
         if row["IsConsumable"] == "n":
             return False
         return True
+
+def add_column(db_path, table, column, col_type, default=None):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Check if column already exists
+    cursor.execute(f"PRAGMA table_info({table})")
+    existing_columns = [row[1] for row in cursor.fetchall()]
+
+    if column in existing_columns:
+        conn.close()
+        return False  # Column already exists, nothing to do
+
+    # Build ALTER TABLE statement
+    if default is None:
+        sql = f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
+    else:
+        sql = f"ALTER TABLE {table} ADD COLUMN {column} {col_type} DEFAULT {default}"
+
+    cursor.execute(sql)
+    conn.commit()
+    conn.close()
+    return True  # Column was added
 
 def set_barcode(db_path, name, barcode):
     with sqlite3.connect(db_path) as conn:

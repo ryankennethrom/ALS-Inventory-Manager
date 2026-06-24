@@ -24,6 +24,8 @@ import subprocess
 import os
 from relation_widget_builder import RelationWidgetBuilder
 from titled_grids_builder import TitledGridsBuilder
+from override_utils import override_object_function
+from stock_verify_action import StockVerifyAction
 
 def create_consumables_table(parent):
         consumables = RelationInterface(
@@ -139,7 +141,7 @@ if __name__ == "__main__":
         Application.run_on_startup(True)
 
     DB.PATH = db_path
-    DB.init_db(db_path)
+    DB.add_column(db_path, "NonconsumableLogs", "Comments", "TEXT", default="")
     Application.DatabasePath = db_path
 
     def non_cons_log_content(notebook, root):
@@ -577,21 +579,25 @@ if __name__ == "__main__":
         consumables_widget.grid_remove()
         
         def open_non_cons(name, barcode):
+            override_object_function(non_consumables_widget, "get_add_item_title", lambda self: f"Open a '{name}'")
             non_consumables_widget.add_button.invoke()
             non_consumables_widget.add_entries["ActionType"].delete(0, tk.END)
             non_consumables_widget.add_entries["ActionType"].insert(0, "Opened")
             non_consumables_widget.add_entries["ProductName"].delete(0, tk.END)
             non_consumables_widget.add_entries["ProductName"].insert(0, name)
+            
 
             modify_widgets(non_consumables_widget.add_widgets, include=["Quantity", "Date", "Initials"])
             non_consumables_widget.hold_popup(non_consumables_widget.popup)
 
         def receive_non_cons(name, barcode):
+            override_object_function(non_consumables_widget, "get_add_item_title", lambda self: f"Receive a '{name}'")
             non_consumables_widget.add_button.invoke()
             non_consumables_widget.add_entries["ActionType"].delete(0, tk.END)
             non_consumables_widget.add_entries["ActionType"].insert(0, "Received")
             non_consumables_widget.add_entries["ProductName"].delete(0, tk.END)
             non_consumables_widget.add_entries["ProductName"].insert(0, name)
+            
 
             modify_widgets(non_consumables_widget.add_widgets, include=["Quantity", "Date", "Initials", "PONumber"])
             non_consumables_widget.hold_popup(non_consumables_widget.popup)
@@ -635,16 +641,24 @@ if __name__ == "__main__":
             for widg in button_widgets:
                 widg.destroy()
 
+            button_widgets.clear()
+
             buttons = [
                 ("Set Fetch Rule", set_current_barcode),
                 ("Receive", receive_cons),
             ]
 
+            
+
             if DB.is_cons_product_openable(db_path, product_name):
-                buttons.append(("Open", open_cons))
+                open_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=1.0)
+                override_object_function(open_action, "action", lambda self: open_cons(product_name, barcode))
+                buttons.append(("Open", lambda *_: (open_action.execute(), build_available_cons_actions(product_name, barcode))))
 
             if DB.is_cons_product_finishable(db_path, product_name):
-                buttons.append(("Finish", finish_cons))
+                finish_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=1.0)
+                override_object_function(finish_action, "action", lambda self: finish_cons(product_name, barcode))
+                buttons.append(("Finish", lambda *_: (finish_action.execute(), build_available_cons_actions(product_name,barcode))))
 
             for label, cmd in buttons:
                 btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_name, barcode), padding=10)
@@ -652,6 +666,7 @@ if __name__ == "__main__":
                 button_widgets.append(btn)
 
         def receive_cons(name, barcode):
+            override_object_function(consumables_widget, "get_add_item_title", lambda self: f"Receive a '{name}'")
             consumables_widget.add_button.invoke()
             consumables_widget.popup.bind("<Destroy>", lambda e: build_available_cons_actions(name, barcode))
             modify_widgets(consumables_widget.add_widgets, exclude=["id", "DateOpened", "OpenedInitials", "DateFinished", "FinishedInitials"])
@@ -660,6 +675,7 @@ if __name__ == "__main__":
             consumables_widget.hold_popup(consumables_widget.popup)
 
         def open_cons(name, barcode):
+            override_object_function(consumables_widget, "get_update_item_title", lambda self: f"Open a '{name}'")
             consumables_widget.double_click("DateOpened", "")
             consumables_widget.popup.bind("<Destroy>", lambda e: build_available_cons_actions(name, barcode))
             modify_widgets(consumables_widget.update_widgets, include=["id", "DateOpened", "OpenedInitials"])
@@ -668,6 +684,7 @@ if __name__ == "__main__":
             consumables_widget.hold_popup(consumables_widget.popup)
 
         def finish_cons(name, barcode):
+            override_object_function(consumables_widget, "get_update_item_title", lambda self: f"Finish a '{name}'")
             consumables_widget.double_click(field="DateFinished", value="")
             consumables_widget.popup.bind("<Destroy>", lambda e: build_available_cons_actions(name, barcode))
             modify_widgets(consumables_widget.update_widgets, include=["id", "DateFinished", "FinishedInitials"])
@@ -690,6 +707,7 @@ if __name__ == "__main__":
 
                 for widg in button_widgets:
                     widg.destroy()
+                
                 non_cons_result_frame.grid_remove()
                 consumables_widget.grid_remove()
 
@@ -712,11 +730,15 @@ if __name__ == "__main__":
                     non_consumables_widget.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
                     non_consumables_widget.advanced_search_widgets["ProductName"][0].insert(0, product_entry.get())
                     non_consumables_widget.apply_filters_button.invoke()
+                    
+                   
 
                     non_cons_result_frame.grid()
                     
                     for widg in button_widgets:
                         widg.destroy()
+
+                    button_widgets.clear()
 
                     buttons = [
                         ("Set Fetch Rule", set_current_barcode),
@@ -724,12 +746,15 @@ if __name__ == "__main__":
                     ]
 
                     if DB.is_non_cons_product_openable(db_path, product_entry.get()):
-                        buttons.append(("Open", open_non_cons))
+                        open_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=1.0)
+                        override_object_function(open_action, "action", lambda self: open_non_cons(product_name, barcode_entry.get()))
+                        buttons.append(("Open", lambda *_: open_action.execute()))
 
                     for label, cmd in buttons:
                         btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
                         btn.pack(anchor="w", pady=3, fill="x")
                         button_widgets.append(btn)
+
                 else:
                     consumables_widget.advanced_search(non_consumables_widget.advance_button, silent=True)
                     consumables_widget.advanced_search_widgets["ProductName"][1].set("exactly")
@@ -738,6 +763,7 @@ if __name__ == "__main__":
                     consumables_widget.apply_filters_button.invoke()
 
                     consumables_widget.grid()
+
                     build_available_cons_actions(product_name, barcode_entry.get())
 
                 root.config(cursor="")
