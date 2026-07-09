@@ -112,7 +112,10 @@ if __name__ == "__main__":
 
     def stop_if_instance_active():
         # Make sure one only one process exists
-        mutex_name = "ALS Inventory Manager"
+        if TEST_MODE:
+            mutex_name = "ALS Inventory Manager TEST"
+        else:
+            mutex_name = "ALS Inventory Manager"
         kernel32 = ctypes.windll.kernel32
         mutex = kernel32.CreateMutexW(None, False, mutex_name)
         last_error = kernel32.GetLastError()
@@ -133,7 +136,7 @@ if __name__ == "__main__":
     stop_if_instance_active()   
 
     if TEST_MODE:
-        db_path = "./dist/Resources/Database/data.db"
+        db_path = "./Resources/Database/data.db"
     else:
         default_path = "./Resources/Database/data.db"
         db_path = default_path
@@ -141,7 +144,8 @@ if __name__ == "__main__":
         Application.run_on_startup(True)
 
     DB.PATH = db_path
-    DB.add_column(db_path, "NonconsumableLogs", "Comments", "TEXT", default="")
+    DB.migrate(db_path)
+    DB.add_column(db_path, "NonconsumableLogs", "Comments", "TEXT", default="''")
     Application.DatabasePath = db_path
 
     def non_cons_log_content(notebook, root):
@@ -477,6 +481,8 @@ if __name__ == "__main__":
 
     def quicklogs_content(notebook, root, db_path):
         # -------------------- Main Window --------------------
+        frequency = 0.2
+
         root.grid_rowconfigure(0, weight=1)
         root.grid_columnconfigure(0, weight=1)
 
@@ -643,20 +649,26 @@ if __name__ == "__main__":
 
             button_widgets.clear()
 
+            def rebuild():
+                build_available_cons_actions(product_name, barcode)
+
+            receive_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
+            
+            override_object_function(receive_action, "action", lambda self: receive_cons(product_name, barcode))
+
             buttons = [
                 ("Set Fetch Rule", set_current_barcode),
-                ("Receive", receive_cons),
-            ]
-
-            
+                ("Receive", lambda *_: (receive_action.execute(), build_available_cons_actions(product_name, barcode))),
+                ("Verify Stock", lambda *_: (receive_action.verify_product_quantity(), rebuild()))
+            ] 
 
             if DB.is_cons_product_openable(db_path, product_name):
-                open_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=1.0)
+                open_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
                 override_object_function(open_action, "action", lambda self: open_cons(product_name, barcode))
                 buttons.append(("Open", lambda *_: (open_action.execute(), build_available_cons_actions(product_name, barcode))))
 
             if DB.is_cons_product_finishable(db_path, product_name):
-                finish_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=1.0)
+                finish_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
                 override_object_function(finish_action, "action", lambda self: finish_cons(product_name, barcode))
                 buttons.append(("Finish", lambda *_: (finish_action.execute(), build_available_cons_actions(product_name,barcode))))
 
@@ -664,6 +676,8 @@ if __name__ == "__main__":
                 btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_name, barcode), padding=10)
                 btn.pack(anchor="w", pady=3, fill="x")
                 button_widgets.append(btn)
+
+            productsTotalSupply.update_table()
 
         def receive_cons(name, barcode):
             override_object_function(consumables_widget, "get_add_item_title", lambda self: f"Receive a '{name}'")
@@ -691,6 +705,42 @@ if __name__ == "__main__":
             consumables_widget.update_widgets["DateFinished"]["Entry"].delete(0, tk.END)
             consumables_widget.update_widgets["DateFinished"]["Entry"].insert(0, date.today().strftime("%Y-%m-%d"))
             consumables_widget.hold_popup(consumables_widget.popup)
+
+        def build_available_non_cons_actions(product_name, barcode):
+            for widg in button_widgets:
+                widg.destroy()
+
+            button_widgets.clear()
+
+            def rebuild():
+                build_available_non_cons_actions(product_name, barcode)
+
+            def on_popup_destroy():
+                if non_consumables_widget.popup is not None and non_consumables_widget.popup.winfo_exists():
+                    non_consumables_widget.popup.bind("<Destroy>", lambda *_: rebuild())
+
+            receive_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
+            override_object_function(receive_action, "action", lambda self: (receive_non_cons(product_name, barcode_entry.get()), rebuild()))
+
+            buttons = [
+                ("Set Fetch Rule", set_current_barcode),
+                ("Receive", lambda *_: (receive_action.execute(), on_popup_destroy())),
+                ("Verify Stock", lambda *_: (receive_action.verify_product_quantity(),rebuild()))
+            ]
+
+            if DB.is_non_cons_product_openable(db_path, product_entry.get()):
+                open_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
+                override_object_function(open_action, "action", lambda self: (open_non_cons(product_name, barcode_entry.get()), rebuild()))
+                buttons.append(("Open", lambda *_: (open_action.execute(), on_popup_destroy())))
+
+            for label, cmd in buttons:
+                btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
+                btn.pack(anchor="w", pady=3, fill="x")
+                button_widgets.append(btn)
+
+
+            productsTotalSupply.search_button.invoke()
+
 
         def on_product_entered(event=None):
             try:
@@ -734,27 +784,8 @@ if __name__ == "__main__":
                    
 
                     non_cons_result_frame.grid()
+                    build_available_non_cons_actions(product_name, barcode_entry.get())
                     
-                    for widg in button_widgets:
-                        widg.destroy()
-
-                    button_widgets.clear()
-
-                    buttons = [
-                        ("Set Fetch Rule", set_current_barcode),
-                        ("Receive", receive_non_cons),
-                    ]
-
-                    if DB.is_non_cons_product_openable(db_path, product_entry.get()):
-                        open_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=1.0)
-                        override_object_function(open_action, "action", lambda self: open_non_cons(product_name, barcode_entry.get()))
-                        buttons.append(("Open", lambda *_: open_action.execute()))
-
-                    for label, cmd in buttons:
-                        btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
-                        btn.pack(anchor="w", pady=3, fill="x")
-                        button_widgets.append(btn)
-
                 else:
                     consumables_widget.advanced_search(non_consumables_widget.advance_button, silent=True)
                     consumables_widget.advanced_search_widgets["ProductName"][1].set("exactly")
@@ -823,8 +854,12 @@ if __name__ == "__main__":
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
     
     def nav(root, db_path):
-
-        root.title("ALS Inventory Manager")
+        
+        if TEST_MODE:
+            root.title("ALS Inventory Manager TEST")
+        else:
+            root.title("ALS Inventory Manager")
+        
         root.geometry("1200x700")
 
         # NOTEBOOK in row 1 (below the warning)

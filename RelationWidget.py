@@ -24,42 +24,6 @@ def generate_code(length=5):
     chars = string.ascii_uppercase + string.digits
     return ''.join(random.choice(chars) for _ in range(length))
 
-def confirm_delete(parent, on_delete):
-    code = generate_code()
-    
-    popup = tk.Toplevel(parent)
-    popup.title("Confirm Delete")
-    popup.grab_set()  # make it modal
-
-    tk.Label(popup, text=f"Type this code to confirm deletion:\n\n{code}").pack(pady=10, padx=10)
-
-    entry = tk.Entry(popup)
-    entry.pack(pady=10, padx=10)
-    entry.focus()
-
-    def check_code():
-        if entry.get() == code:
-            popup.destroy()
-            on_delete()
-        else:
-            messagebox.showerror("Error", "Incorrect code. Try again.")
-
-    tk.Button(popup, text="Confirm", command=check_code).pack(pady=10)
-
-    popup.update_idletasks()
-    popup_width = popup.winfo_reqwidth()
-    popup_height = popup.winfo_reqheight()
-
-    parent_x = parent.winfo_rootx()
-    parent_y = parent.winfo_rooty()
-    parent_width = parent.winfo_width()
-    parent_height = parent.winfo_height()
-
-    x = parent_x + (parent_width // 2) - (popup_width // 2)
-    y = parent_y + (parent_height // 2) - (popup_height // 2)
-
-    popup.geometry(f"+{x}+{y}")
-
 def generate_random_name(length=6):
     letters = string.ascii_uppercase
     digits = string.digits
@@ -97,6 +61,9 @@ class RelationWidget(ttk.LabelFrame):
         self.update_entries = None
         self.create_widgets()
         self.update_table()
+        self.delete_code_entry = None
+        self.recent_delete_code = None
+        self.delete_ok_button = None
         self.apply_filters_button = None
         self.filter_results_color = filter_results_color
         
@@ -139,6 +106,48 @@ class RelationWidget(ttk.LabelFrame):
         self.relation.on_search_field_changed("")
         self.relation.set_current_filters_as_inactive()
         self.relation.set_current_filters_as_default()
+
+    def confirm_delete(self, parent, on_delete):
+        code = generate_code()
+        self.recent_delete_code = code
+        
+        popup = tk.Toplevel(parent)
+        
+        popup.title("Confirm Delete")
+        popup.grab_set()  # make it modal
+
+        tk.Label(popup, text=f"Type this code to confirm deletion:\n\n{code}").pack(pady=10, padx=10)
+
+        entry = tk.Entry(popup)
+        self.delete_code_entry = entry
+        entry.pack(pady=10, padx=10)
+        entry.focus()
+
+        def check_code():
+            if entry.get() == code:
+                popup.destroy()
+                on_delete()
+            else:
+                messagebox.showerror("Error", "Incorrect code. Try again.")
+
+        ok_button = tk.Button(popup, text="Confirm", command=check_code)
+        ok_button.pack(pady=10)
+        
+        self.delete_ok_button = ok_button
+        
+        popup.update_idletasks()
+        popup_width = popup.winfo_reqwidth()
+        popup_height = popup.winfo_reqheight()
+
+        parent_x = parent.winfo_rootx()
+        parent_y = parent.winfo_rooty()
+        parent_width = parent.winfo_width()
+        parent_height = parent.winfo_height()
+
+        x = parent_x + (parent_width // 2) - (popup_width // 2)
+        y = parent_y + (parent_height // 2) - (popup_height // 2)
+
+        popup.geometry(f"+{x}+{y}")
 
     def create_widgets(self):
         # Configure internal grid
@@ -702,6 +711,24 @@ class RelationWidget(ttk.LabelFrame):
             if self.relation.curr_results[n-1-i][field] == value:
                 self.open_update_popup(n-1-i, self.relation.curr_results[n-1-i])
 
+    def double_click_row(self, row):
+        self.open_update_popup(row, self.relation.curr_results[row])
+
+    def delete_item(self, row):
+        def on_delete():
+            index = row
+            result = run_with_error_handling(
+                self.master,
+                self.relation.on_item_delete_clicked,
+                index
+            )
+
+            if result["status"] == "Ok":
+                self.update_table()
+                if self.popup is not None and self.popup.winfo_exists():
+                    self.popup.destroy()
+        on_delete()
+
     def get_first_row_from_bottom(self, field, value):
         """
         Return the index of the first matching row when searching
@@ -714,8 +741,23 @@ class RelationWidget(ttk.LabelFrame):
                 return i
         return None
     
+    def get_first_row_from_top(self, field, value):
+        """
+        Return the index of the first matching row when searching
+        from the BOTTOM of curr_results upward.
+        Returns None if not found.
+        """
+        n = len(self.relation.curr_results)
+        for i in range(0, n):  # bottom → top
+            if self.relation.curr_results[i][field] == value:
+                return i
+        return None
+
     def get_update_item_title(self):
         return "Update Item"
+
+    def get_value(self, row, field):
+        return self.relation.curr_results[row][field]
 
     def enter_add_entry_value(self, entry_name, new_value):
         if self.popup is None or not self.popup.winfo_exists():
@@ -734,6 +776,7 @@ class RelationWidget(ttk.LabelFrame):
             raise Exception("Add item popup must be invoked() before append_update_entry_value() can be used.")
         self.update_entries[entry_name].insert(tk.END, value)
 
+    
     def open_update_popup(self, item_index, data):
         if self.popup is not None and self.popup.winfo_exists():
             return
@@ -767,28 +810,10 @@ class RelationWidget(ttk.LabelFrame):
             self.update_table()
             self.popup.destroy()
 
-
         def delete_item():
-            selected = self.tree.selection()
-            if not selected:
-                return  # Nothing selected, do nothing
-
-            index = self.tree.index(selected[0])
-
-
-            def on_delete():
-                result = run_with_error_handling(
-                    self.master,
-                    self.relation.on_item_delete_clicked,
-                    index
-                )
-
-                if result["status"] == "Ok":
-                    self.update_table()
-                    self.popup.destroy()
-
-            confirm_delete(self.popup, on_delete)
-                        
+            self.delete_item(item_index)
+            self.confirm_delete(self.popup, on_delete)
+        
         # Create an inner frame to hold both buttons
         btn_frame = ttk.Frame(frame)
         btn_frame.grid(row=len(data)+1, column=0, columnspan=2, pady=20)  # span two columns
@@ -798,6 +823,8 @@ class RelationWidget(ttk.LabelFrame):
 
         update_btn = ttk.Button(btn_frame, text="Update", width=btn_width, command=save_changes)
         delete_btn = ttk.Button(btn_frame, text="Delete", width=btn_width, command=delete_item)
+        
+        self.on_update_delete_button = delete_btn
 
         # Pack them side by side
         update_btn.pack(side="left")
@@ -813,6 +840,7 @@ class RelationWidget(ttk.LabelFrame):
         
         self.popup.deiconify()
         self.hold_popup(self.popup)
+
 
     def search(self, event=None):
         text = self.search_entry.get()
@@ -907,5 +935,5 @@ class RelationWidget(ttk.LabelFrame):
                 run_with_error_handling(self.master, self.relation.on_item_delete_clicked, index)
             self.update_table()
 
-        confirm_delete(self, on_delete)
+        self.confirm_delete(self, on_delete)
 

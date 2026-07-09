@@ -6,10 +6,54 @@ import configparser
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from pathlib import Path
+import inspect
+import hashlib
+
+def hash_function(func):
+    source = inspect.getsource(func)
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
 
 APP_NAME = "InventoryApp"
 CONFIG_FILE = "config.ini"
 PATH = None
+
+
+def get_migrations() -> tuple[list[str], dict[str, str]]:
+    migrations_file = Path("./Resources/Database/migrations.data")
+
+    # Ensure directory and file exist
+    migrations_file.parent.mkdir(parents=True, exist_ok=True)
+    migrations_file.touch(exist_ok=True)
+
+    migrations = []
+    migration_hashes = {}
+
+    with migrations_file.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            name, hash_value = line.split(maxsplit=1)
+
+            migrations.append(name)
+            migration_hashes[name] = hash_value
+
+    return migrations, migration_hashes
+
+def add_migration(migration_name: str) -> None:
+    migrations_file = Path("./Resources/Database/migrations.data")
+
+    # Ensure directory and file exist
+    migrations_file.parent.mkdir(parents=True, exist_ok=True)
+    migrations_file.touch(exist_ok=True)
+
+    # Append migration name as a new line
+    with migrations_file.open("a", encoding="utf-8") as f:
+        f.write(f"{migration_name}\n")
 
 def get_config_path():
     appdata = os.getenv("APPDATA")
@@ -323,11 +367,167 @@ def add_barcode_check_constraint(db_path):
         cursor.execute(sql)
 
     # Re-enable FK checks
+    print("Migration complete: CHECK constraint added, views and triggers restored.")
+    # Re-enable FK checks
     cursor.execute("PRAGMA foreign_keys = ON;")
     conn.commit()
     conn.close()
 
-    print("Migration complete: CHECK constraint added, views and triggers restored.")
+
+
+def consumable_logs_table(conn):
+    cursor = conn.cursor()
+
+    # 1. Fetch triggers referencing Products
+    cursor.execute("""
+        SELECT name, sql FROM sqlite_master
+        WHERE type='trigger';
+    """)
+    triggers = cursor.fetchall()
+
+    # 2. Fetch views referencing Products
+    cursor.execute("""
+        SELECT name, sql FROM sqlite_master
+        WHERE type='view';
+    """)
+    views = cursor.fetchall()
+
+    # 3. Drop triggers
+    for name, _ in triggers:
+        cursor.execute(f"DROP TRIGGER IF EXISTS {name};")
+
+    # 4. Drop views
+    for name, _ in views:
+        cursor.execute(f"DROP VIEW IF EXISTS {name};")
+
+    # ---------- Consumable Logs ----------
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ConsumableLogs_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ProductName TEXT NOT NULL,
+            CertifiedValue TEXT NOT NULL CHECK (CertifiedValue != ''),
+            CertificationDate TEXT NOT NULL
+                CHECK (
+                    (CertificationDate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND CertificationDate = date(CertificationDate))
+                    OR CertificationDate = 'Not Set'
+                    OR CertificationDate = 'Missing'
+                    OR CertificationDate = 'Unknown'
+                ),
+            LOT TEXT NOT NULL CHECK (LOT != ''),
+            CoaFilePath TEXT NOT NULL CHECK (CoaFilePath != ''),
+            Quantity INTEGER NOT NULL
+                CHECK (Quantity = 1),
+
+            -- Dates for lifecycle
+            DateReceived TEXT NOT NULL
+                CHECK (
+                    DateReceived GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND DateReceived = date(DateReceived)
+                    OR DateReceived = "Unknown"
+                ),
+
+            ReceivedInitials TEXT NOT NULL
+                CHECK (
+                    ReceivedInitials != ''
+                ),
+
+            ExpiryDate TEXT NOT NULL
+                CHECK (
+                    ExpiryDate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND ExpiryDate = date(ExpiryDate)
+                    OR ExpiryDate = "Missing"
+                    OR ExpiryDate = "Unknown"
+                ),
+
+            DateOpened TEXT
+                CHECK (
+                    DateOpened == '' OR
+                    (
+                        DateOpened GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                        AND DateOpened = date(DateOpened)
+                    )
+                ),
+
+             OpenedInitials TEXT
+                CHECK (
+                    ( OpenedInitials == '' AND DateOpened == '' ) or (OpenedInitials != '' AND DateOpened != '')
+                ),
+
+            DateFinished TEXT
+                CHECK (
+                    DateFinished == '' OR
+                    (
+                        DateFinished GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                        AND DateFinished = date(DateFinished)
+                    )
+                ),
+
+            FinishedInitials TEXT
+                CHECK (
+                    (FinishedInitials == '' AND DateFinished == '') or (FinishedInitials != '' AND DateFinished != '')
+                ),
+            PONumber TEXT NOT NULL CHECK (PONumber != ''),
+            Comments TEXT DEFAULT '',
+            
+            -- Lifecycle state consistency
+            CHECK (
+                (DateOpened == '' AND DateFinished == '')
+                OR (DateOpened != '' AND DateFinished == '')
+                OR (DateOpened != '' AND DateFinished != '')
+            ),
+
+            FOREIGN KEY (ProductName)
+                REFERENCES Products(ProductName)
+                ON DELETE RESTRICT
+        ) STRICT;
+    """)
+
+    # 6. Copy data from old table
+    cursor.execute("""
+        INSERT INTO ConsumableLogs_new
+        SELECT * FROM ConsumableLogs;
+    """)
+
+    # 7. Drop old table
+    cursor.execute("DROP TABLE ConsumableLogs;")
+
+    # 8. Rename new table
+    cursor.execute("ALTER TABLE ConsumableLogs_new RENAME TO ConsumableLogs;")
+
+    # 9. Restore views
+    for name, sql in views:
+        cursor.execute(sql)
+
+    # 10. Restore triggers
+    for name, sql in triggers:
+        cursor.execute(sql)
+
+def migrate(db_path):
+    print("Running migrations")
+    conn = sqlite3.connect(db_path)
+    new_migrations = [consumable_logs_table]
+    try:
+        conn.execute("PRAGMA foreign_keys = OFF;")
+        conn.execute("BEGIN")
+        
+        migrations = get_migrations()
+        
+        for func in new_migrations:
+            if func.__name__ in migrations and value[func.__name__] == hash_function(func):
+                continue
+            else:
+                print(f"Running migration: {func.__name__}")
+                func(conn)
+                add_migration(f"{func.__name__} {hash_function(func)}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON;")
+
+    print("Migrations finished")
 
 def init_db(db_path, test=False):
     conn = sqlite3.connect(db_path)
@@ -959,7 +1159,7 @@ def is_product_consumable(db_path, name):
             return False
         return True
 
-def add_column(db_path, table, column, col_type, default=None):
+def add_column(db_path, table, column, col_type, default=''):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
