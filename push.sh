@@ -2,6 +2,7 @@
 
 : "${1:?Error: must provide commit message}"
 
-./push.sh "$1"
-./build.sh
+git add .
+git commit -m "$1"
+git push origin main --force
 
