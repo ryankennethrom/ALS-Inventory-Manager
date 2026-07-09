@@ -9,11 +9,12 @@ from tkinter import filedialog, messagebox
 from pathlib import Path
 import inspect
 import hashlib
+import marshal
 
-def hash_function(func):
-    source = inspect.getsource(func)
-    return hashlib.sha256(source.encode("utf-8")).hexdigest()
-
+def migration_hash(func):
+    return hashlib.sha256(
+        marshal.dumps(func.__code__)
+    ).hexdigest()
 
 APP_NAME = "InventoryApp"
 CONFIG_FILE = "config.ini"
@@ -514,12 +515,12 @@ def migrate(db_path):
         migrations = get_migrations()
         
         for func in new_migrations:
-            if func.__name__ in migrations and value[func.__name__] == hash_function(func):
+            if func.__name__ in migrations and value[func.__name__] == migration_hash(func):
                 continue
             else:
                 print(f"Running migration: {func.__name__}")
                 func(conn)
-                add_migration(f"{func.__name__} {hash_function(func)}")
+                add_migration(f"{func.__name__} {migration_hash(func)}")
         conn.commit()
     except Exception:
         conn.rollback()
