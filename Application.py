@@ -8,12 +8,129 @@ import psutil
 import win32event
 import win32api
 import win32con
+import requests
+import constants
+import certifi
+from datetime import date, timedelta
+import DB
 
 class Application:
     EXE_NAME = "ALS Inventory Manager.exe"
     DatabasePath = "Resources/Database/data.db"
     HELPER_NAME = "ALS Inventory Helper.exe"
     HELPER_PATH = os.path.join("Resources", "Helper", HELPER_NAME)
+
+    class Settings:
+
+        @staticmethod
+        def GetLastMonthlyEmail():
+            return DB.get_monthly_email_last_sent(None)
+        
+        @staticmethod
+        def SetMonthlyEmailAsToday():
+            DB.set_monthly_email_last_sent(
+                None,
+                date.today()
+            )
+
+        @staticmethod
+        def clear_monthly_email_last_sent():
+            DB.clear_monthly_email_last_sent()
+    
+    @staticmethod
+    def get_monthly_report_html() -> str:
+
+        emergency = DB.get_on_emergency()
+        low = DB.get_on_low()
+        out_of_stock = DB.get_out_of_stock()
+
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h1>ALS Inventory Monthly Report</h1>
+            <p>Generated: {date.today()}</p>
+        """
+
+        def product_table(title, products):
+            if not products:
+                return f"<h2>{title}</h2><p>None</p>"
+
+            table = f"""
+                <h2>{title}</h2>
+                <table border="1" cellpadding="5" cellspacing="0">
+                    <tr>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                    </tr>
+            """
+
+            for product in products:
+                table += f"""
+                    <tr>
+                        <td>{product["ProductName"]}</td>
+                        <td>{product["TotalQuantityAvailable"]}</td>
+                    </tr>
+                """
+
+            table += "</table>"
+            return table
+
+        html += product_table(
+            "Emergency Stock",
+            emergency
+        )
+
+        html += product_table(
+            "Low Stock",
+            low
+        )
+
+        html += product_table(
+            "Out Of Stock",
+            out_of_stock
+        )
+
+        html += """
+        </body>
+        </html>
+        """
+
+        return html
+        
+    @staticmethod
+    def should_send_monthly_email():
+        def third_monday(year: int, month: int) -> date:
+            first_day = date(year, month, 1)
+
+            # Monday = 0
+            days_until_monday = (0 - first_day.weekday()) % 7
+
+            first_monday = first_day + timedelta(days=days_until_monday)
+
+            # Third Monday = first Monday + 14 days
+            return first_monday + timedelta(days=14)
+
+        last_sent = DB.get_monthly_email_last_sent()
+
+        today = date.today()
+
+        target_date = third_monday(today.year, today.month)
+
+        return True
+
+        # Not yet reached the third Monday
+        if today < target_date:
+            return False
+
+        # Never sent before
+        if last_sent is None:
+            return True
+
+        # Already sent after the trigger date
+        if last_sent >= target_date:
+            return False
+
+        return True
 
     @staticmethod
     def delete_task_if_exists():
@@ -100,6 +217,64 @@ class Application:
 
         create_vbs_launcher(Application.EXE_NAME, exe_dir, vbs_path)
         register_task(vbs_path)
+
+
+    @staticmethod
+    def test_send_email() -> bool:
+        try:
+            response = requests.get(
+                "https://api.brevo.com/v3/account",
+                headers={
+                    "accept": "application/json",
+                    "api-key": constants.BREVO_API_KEY
+                },
+                verify=False,  # Match your current implementation
+                timeout=30
+            )
+
+            return response.status_code == 200
+
+        except Exception:
+            return False
+
+    @staticmethod
+    def send_email(subject: str, body: str, recipient: str) -> bool:
+        url = "https://api.brevo.com/v3/smtp/email"
+
+        headers = {
+            "accept": "application/json",
+            "api-key": constants.BREVO_API_KEY,
+            "content-type": "application/json",
+        }
+
+        payload = {
+            "sender": {
+                "name": "ALS Inventory Manager",
+                "email": constants.EMAIL_SENDER,
+            },
+            "to": [
+                {
+                    "email": recipient,
+                }
+            ],
+            "subject": subject,
+            "htmlContent": body,
+        }
+
+        try:
+            response = requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+
+            response.raise_for_status()
+            return True
+
+        except requests.RequestException as e:
+            print(f"Failed to send email: {e}")
+            return False
 
     @staticmethod
     def is_allowed_to_run():

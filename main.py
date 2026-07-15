@@ -26,6 +26,7 @@ from relation_widget_builder import RelationWidgetBuilder
 from titled_grids_builder import TitledGridsBuilder
 from override_utils import override_object_function
 from stock_verify_action import StockVerifyAction
+from settings_tab import Settings
 
 def create_consumables_table(parent):
         consumables = RelationInterface(
@@ -90,7 +91,6 @@ def create_non_consumables_table(parent):
         return non_cons_widg, non_consumables
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="ALS Inventory Manager")
     parser.add_argument(
         "--test",
@@ -146,6 +146,13 @@ if __name__ == "__main__":
     DB.PATH = db_path
     DB.migrate(db_path)
     DB.add_column(db_path, "NonconsumableLogs", "Comments", "TEXT", default="''")
+    
+    Application.Settings.clear_monthly_email_last_sent()
+    if Application.should_send_monthly_email():
+        body = Application.get_monthly_report_html()
+        print(body)
+        DB.try_catch_monthly_email_turn(None, on_catch=lambda *_: Application.send_email("Monthly Report", body, "ryankennethrom@gmail.com"))
+    
     Application.DatabasePath = db_path
 
     def non_cons_log_content(notebook, root):
@@ -868,7 +875,6 @@ if __name__ == "__main__":
 
         root.grid_rowconfigure(1, weight=1)
         root.grid_columnconfigure(2, weight=1)
-        
        
         # Create frames (each tab needs a frame)
         analytics_tab = ttk.Frame(notebook)
@@ -883,6 +889,8 @@ if __name__ == "__main__":
         notebook.add(cons_log_tab, text="Consumable Logs")
         notebook.add(non_cons_log_tab, text="Non-consumable Logs")
         notebook.add(product_manager_tab, text="Products")
+
+        Settings(notebook)
 
         # Initial load
         cons_log_content(notebook, cons_log_tab)

@@ -1,1 +1,4 @@
 Resources/*
+build/*
+dist/*
+constants.py

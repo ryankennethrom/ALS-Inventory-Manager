@@ -7,3 +7,5 @@ rapidfuzz
 pillow
 pywin32
 psutil
+requests
+certifi

@@ -10,16 +10,26 @@ from pathlib import Path
 import inspect
 import hashlib
 import marshal
-
-def migration_hash(func):
-    return hashlib.sha256(
-        marshal.dumps(func.__code__)
-    ).hexdigest()
+from datetime import date
+from sqlite3 import connect
+from migrations import *
 
 APP_NAME = "InventoryApp"
 CONFIG_FILE = "config.ini"
 PATH = None
 
+
+def migration_hash(func):
+    code = func.__code__
+
+    data = repr((
+        code.co_code,
+        code.co_consts,
+        code.co_names,
+        code.co_varnames,
+    )).encode()
+
+    return hashlib.sha256(data).hexdigest()
 
 def get_migrations() -> tuple[list[str], dict[str, str]]:
     migrations_file = Path("./Resources/Database/migrations.data")
@@ -56,6 +66,39 @@ def add_migration(migration_name: str) -> None:
     with migrations_file.open("a", encoding="utf-8") as f:
         f.write(f"{migration_name}\n")
 
+
+def set_migration(migration_name: str, value: str) -> None:
+    migrations_file = Path("./Resources/Database/migrations.data")
+
+    migrations_file.parent.mkdir(parents=True, exist_ok=True)
+    migrations_file.touch(exist_ok=True)
+
+    lines = []
+    found = False
+
+    with migrations_file.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            name = line.split(maxsplit=1)[0]
+
+            if name == migration_name:
+                lines.append(f"{migration_name} {value}")
+                found = True
+            else:
+                lines.append(line)
+
+    if not found:
+        lines.append(f"{migration_name} {value}")
+
+    with migrations_file.open("w", encoding="utf-8") as f:
+        for line in lines:
+            f.write(line + "\n")
+
+
 def get_config_path():
     appdata = os.getenv("APPDATA")
     config_dir = os.path.join(appdata, APP_NAME)
@@ -82,9 +125,60 @@ def select_database_file():
 
 def get_db_path(test_mode=False):
     if test_mode:
-        return "./dist/Resources/Database/data.db"
+        return "./Resources/Database/data.db"
     else:
         return "./Resources/Database/data.db"
+
+
+def get_monthly_email_last_sent(conn=None) -> date | None: 
+    conn_was_none = conn is None
+    if conn_was_none:
+        conn = sqlite3.connect(get_db_path())
+
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT Value
+            FROM Settings
+            WHERE Key = 'MonthlyEmailLastSent'
+        """)
+
+        row = cursor.fetchone()
+
+
+        if not row or row[0] == "":
+            return None
+
+        return date.fromisoformat(row[0])
+
+    finally:
+        if conn_was_none:
+            conn.close()
+
+
+def set_monthly_email_last_sent(conn=None, sent_date=None) -> None:
+    conn_was_none = conn is None
+    if conn_was_none:
+        conn = sqlite3.connect(get_db_path())
+
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO Settings (Key, Value)
+            VALUES (?, ?)
+        """, (
+            "MonthlyEmailLastSent",
+            sent_date.isoformat()
+        ))
+
+        conn.commit()
+
+    finally:
+        if conn_was_none:
+            conn.close()
+
 
 def ask_for_db_path():
     config_path = get_config_path()
@@ -181,6 +275,31 @@ def recreate_dangerously_low(db_path):
     conn.commit()
     conn.close()
 
+
+def get_on_low():
+    conn = connect(get_db_path())
+    conn.row_factory = sqlite3.Row
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+                ProductName,
+                TotalQuantityAvailable,
+                IsConsumable,
+                UnitOfMeasure,
+                Station,
+                EmergencyCount
+            FROM DangerouslyLow
+            ORDER BY ProductName
+        """)
+
+        return cursor.fetchall()
+
+    finally:
+        conn.close()
+
+
 def recreate_on_emergency(db_path):
     conn = connect(db_path)
     cursor = conn.cursor()
@@ -214,6 +333,30 @@ def recreate_on_emergency(db_path):
 
     conn.commit()
     conn.close()
+
+
+def get_on_emergency():
+    conn = connect(get_db_path())
+    conn.row_factory = sqlite3.Row
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+                ProductName,
+                TotalQuantityAvailable,
+                IsConsumable,
+                UnitOfMeasure,
+                Station,
+                EmergencyCount
+            FROM OnEmergency
+            ORDER BY ProductName
+        """)
+
+        return cursor.fetchall()
+
+    finally:
+        conn.close()
 
 def recreate_products_total_supply(db_path):
     conn = connect(db_path)
@@ -504,23 +647,138 @@ def consumable_logs_table(conn):
     for name, sql in triggers:
         cursor.execute(sql)
 
+
+def create_settings_table(conn):
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Settings (
+            Key TEXT PRIMARY KEY,
+            Value TEXT
+        )
+    """)
+
+    cursor.execute("""
+        INSERT OR IGNORE INTO Settings (Key, Value)
+        VALUES ('MonthlyEmailLastSent', '')
+    """)
+
+def dangerously_low_supply_view(conn):
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        DROP VIEW IF EXISTS DangerouslyLow;
+    """)
+
+    cursor.execute("""
+        CREATE VIEW IF NOT EXISTS DangerouslyLow AS
+        SELECT
+            c.ProductName,
+            c.TotalQuantityAvailable,
+            p.IsConsumable,
+            p.UnitOfMeasure,
+            p.Station,
+            p.EmergencyCount
+        FROM ConsumablesAvailableTotaled c
+        LEFT JOIN Products p
+            ON c.ProductName = p.ProductName
+        WHERE c.TotalQuantityAvailable <= p.EmergencyCount
+          AND p.IsDiscontinued = 'n'
+
+        UNION ALL
+
+        SELECT
+            p.ProductName,
+            COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
+            p.IsConsumable,
+            p.UnitOfMeasure,
+            p.Station,
+            p.EmergencyCount
+        FROM Products p
+        LEFT JOIN AvailableNonConsumables n
+            ON n.ProductName = p.ProductName
+        WHERE p.IsConsumable = 'n'
+          AND COALESCE(n.TotalQuantityAvailable, 0) <= p.EmergencyCount
+          AND p.IsDiscontinued = 'n';
+    """)
+
+
+def reorder_view(conn):
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        DROP VIEW IF EXISTS ReOrderList;
+    """)
+
+    cursor.execute("""
+        CREATE VIEW IF NOT EXISTS ReOrderList AS
+        SELECT
+            c.ProductName,
+            c.TotalQuantityAvailable,
+            p.IsConsumable,
+            p.UnitOfMeasure,
+            p.Station,
+            p.LowSupplyCount
+        FROM ConsumablesAvailableTotaled c
+        LEFT JOIN Products p
+            ON c.ProductName = p.ProductName
+        WHERE c.TotalQuantityAvailable <= p.LowSupplyCount AND c.TotalQuantityAvailable > 0 AND p.IsDiscontinued = 'n'
+
+        UNION ALL
+
+        SELECT
+            p.ProductName,
+            COALESCE(n.TotalQuantityAvailable, 0) AS TotalQuantityAvailable,
+            p.IsConsumable,
+            p.UnitOfMeasure,
+            p.Station,
+            p.LowSupplyCount
+        FROM Products p
+        LEFT JOIN AvailableNonConsumables n
+            ON n.ProductName = p.ProductName
+        WHERE p.IsConsumable = 'n'
+          AND COALESCE(n.TotalQuantityAvailable, 0) <= p.LowSupplyCount
+          AND COALESCE(n.TotalQuantityAvailable, 0) > 0
+          AND p.IsDiscontinued = 'n';
+    """)
+
+
 def migrate(db_path):
     print("Running migrations")
     conn = sqlite3.connect(db_path)
-    new_migrations = [consumable_logs_table]
+    new_migrations = [
+            consumable_logs_table, 
+            create_settings_table,
+            dangerously_low_supply_view,
+            reorder_view,
+            create_monthly_email_recipients_table
+    ]
     try:
         conn.execute("PRAGMA foreign_keys = OFF;")
         conn.execute("BEGIN")
-        
-        migrations = get_migrations()
-        
+
+
+        migration_names, migration_hashes = get_migrations()
+
         for func in new_migrations:
-            if func.__name__ in migrations and value[func.__name__] == migration_hash(func):
+            current_hash = migration_hash(func)
+            stored_hash = migration_hashes.get(func.__name__)
+
+            print(f"Name: {repr(func.__name__)}")
+            print(f"Stored: {repr(stored_hash)}")
+            print(f"Current: {repr(current_hash)}")
+            print(f"Equal: {stored_hash == current_hash}")
+
+            if (
+                func.__name__ in migration_names
+                and stored_hash == current_hash
+            ):
+                print("Skipping")
                 continue
             else:
                 print(f"Running migration: {func.__name__}")
                 func(conn)
-                add_migration(f"{func.__name__} {migration_hash(func)}")
+                set_migration(func.__name__, migration_hash(func))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -529,6 +787,145 @@ def migrate(db_path):
         conn.execute("PRAGMA foreign_keys = ON;")
 
     print("Migrations finished")
+
+
+def get_monthly_email_recipients():
+    conn = connect(get_db_path())
+
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT Email
+            FROM MonthlyEmailRecipients
+            ORDER BY Email
+        """)
+
+        return [row[0] for row in cursor.fetchall()]
+
+    finally:
+        conn.close()
+
+
+def add_monthly_email_recipient(email):
+    conn = connect(get_db_path())
+
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO MonthlyEmailRecipients (Email)
+            VALUES (?)
+        """, (email,))
+
+        conn.commit()
+
+    finally:
+        conn.close()
+
+
+
+def update_monthly_email_recipient(old_email, new_email):
+    conn = connect(get_db_path())
+
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE MonthlyEmailRecipients
+            SET Email = ?
+            WHERE Email = ?
+        """, (
+            new_email,
+            old_email
+        ))
+
+        conn.commit()
+
+    finally:
+        conn.close()
+
+
+def delete_monthly_email_recipient(email):
+    conn = connect(get_db_path())
+
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            DELETE FROM MonthlyEmailRecipients
+            WHERE Email = ?
+        """, (email,))
+
+        conn.commit()
+
+    finally:
+        conn.close()
+
+
+def try_catch_monthly_email_turn(conn, on_catch):
+    if conn is None:
+        conn = sqlite3.connect(get_db_path()) 
+    try:
+        conn.execute("BEGIN")
+
+        last_sent = get_monthly_email_last_sent(conn)
+
+        if last_sent == date.today():
+            conn.rollback()
+            return False
+
+        set_monthly_email_last_sent(
+            conn,
+            date.today()
+        )
+
+        on_catch()
+
+        conn.commit()
+        return True
+
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def clear_monthly_email_last_sent(conn=None):
+    conn_was_none = conn is None
+    if conn_was_none:
+        conn = connect(get_db_path())
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE Settings
+        SET Value = ''
+        WHERE Key = 'MonthlyEmailLastSent'
+    """)
+    if conn_was_none:
+        conn.close()
+
+
+def get_out_of_stock():
+    conn = connect(get_db_path())
+    conn.row_factory = sqlite3.Row
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+                ProductName,
+                TotalQuantityAvailable,
+                Station,
+                IsConsumable
+            FROM OutOfStock
+            ORDER BY ProductName
+        """)
+
+        return cursor.fetchall()
+
+    finally:
+        conn.close()
+
 
 def init_db(db_path, test=False):
     conn = sqlite3.connect(db_path)
