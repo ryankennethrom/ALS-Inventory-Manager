@@ -149,9 +149,7 @@ if __name__ == "__main__":
     
     Application.Settings.clear_monthly_email_last_sent()
     if Application.should_send_monthly_email():
-        body = Application.get_monthly_report_html()
-        print(body)
-        DB.try_catch_monthly_email_turn(None, on_catch=lambda *_: Application.send_email("Monthly Report", body, "ryankennethrom@gmail.com"))
+        DB.try_catch_monthly_email_turn(None, on_catch=lambda *_: Application.send_monthly_report())
     
     Application.DatabasePath = db_path
 

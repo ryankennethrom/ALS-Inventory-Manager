@@ -8,3 +8,18 @@ def create_monthly_email_recipients_table(conn):
         )
     """)
 
+
+def add_default_monthly_email_recipients(conn):
+    cursor = conn.cursor()
+
+    recipients = [
+        "ryankennethrom@gmail.com",
+        "ryanrom14nalt@gmail.com"
+    ]
+
+    for email in recipients:
+        cursor.execute("""
+            INSERT OR IGNORE INTO MonthlyEmailRecipients (Email)
+            VALUES (?)
+        """, (email,))
+

@@ -237,6 +237,20 @@ class Application:
         except Exception:
             return False
 
+
+    @staticmethod
+    def send_monthly_report():
+        recipients = DB.get_monthly_email_recipients()
+
+        body = Application.get_monthly_report_html()
+
+        for recipient in recipients:
+            Application.send_email(
+                "ALS Inventory Monthly Report",
+                body,
+                recipient
+            )
+
     @staticmethod
     def send_email(subject: str, body: str, recipient: str) -> bool:
         url = "https://api.brevo.com/v3/smtp/email"

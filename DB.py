@@ -749,6 +749,7 @@ def migrate(db_path):
     new_migrations = [
             consumable_logs_table, 
             create_settings_table,
+            add_default_monthly_email_recipients,
             dangerously_low_supply_view,
             reorder_view,
             create_monthly_email_recipients_table
