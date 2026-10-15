@@ -6,7 +6,8 @@ from RelationInterface import RelationInterface
 import random
 import string
 from error_ui import show_error_ui
-from error_handler import run_with_error_handling
+from error_handler import run_with_error_handling, humanize_error
+import traceback
 from tkinter import messagebox
 import time
 import types
@@ -31,7 +32,7 @@ def generate_random_name(length=6):
     return f"PROD-{random_part}"
 
 class RelationWidget(ttk.LabelFrame):
-    def __init__(self, master, relation_interface, add_item_title="Add A New Item", filter_results_color="#ADD8E6", labels=[], min_width=400, min_height=200, is_view=False, exclude_fields_on_update=[], exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
+    def __init__(self, master, relation_interface, add_item_title="Add A New Item", filter_results_color="#ADD8E6", labels=[], min_width=400, no_export=False, min_height=200, is_view=False, exclude_fields_on_update=[], exclude_fields_on_show=[], exclude_fields_on_create=[], title="Table", padding=10, **kwargs):
         super().__init__(master, text=title, padding=padding, **kwargs)
         self.title=title
         self.relation = relation_interface
@@ -59,6 +60,8 @@ class RelationWidget(ttk.LabelFrame):
         self.add_button = None
         self.add_entries = None
         self.update_entries = None
+        self.export_results_button = None
+        self.no_export = no_export
         self.create_widgets()
         self.update_table()
         self.delete_code_entry = None
@@ -226,15 +229,17 @@ class RelationWidget(ttk.LabelFrame):
         self.results_number = tk.Label(self, text=f"Results : {len(self.relation.curr_results)}", anchor="w")
         self.results_number.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=0) 
 
-        # Buttons Frame
         self.button_frame = ttk.Frame(self)
         self.button_frame.grid(row=4, column=0, pady=5)
         if not self.is_view:
-            self.add_button = ttk.Button(self.button_frame, text="Add", command=self.add)
+            self.add_button = ttk.Button(self.button_frame, text="Add", command=lambda *_:(self.add({"ProductName":self.search_entry.get()})))
             self.add_button.pack(side=tk.LEFT, padx=5)
             ttk.Button(self.button_frame, text="Delete", command=self.delete).pack(side=tk.LEFT, padx=5)
             self.tree.bind("<Double-1>", self.on_double_click)
-        ttk.Button(self.button_frame, text="Export Results", command=self.export_results).pack(side=tk.LEFT, padx=5)
+            self.tree.bind("<<TreeviewSelect>>", self.on_single_click)
+        if not self.no_export:
+            self.export_results_button = ttk.Button(self.button_frame, text="Export Results", command=self.export_results)
+            self.export_results_button.pack(side=tk.LEFT, padx=5)
 
     def create_popup(self, title):
         popup = tk.Toplevel(self)
@@ -437,6 +442,15 @@ class RelationWidget(ttk.LabelFrame):
 
         run_with_error_handling(self, _export)
 
+    def invoke_update_item(on_emergency_callback):
+        try:
+            self.update_item_button.invoke()
+        except Exception as e:
+            short, details = humanize_error(traceback.format_exc())
+
+            if "Attempt to use emergency supplies." in short and on_emergency_callback:
+                on_emergency_callback()
+                DB.run_with_disabled_emergency_lock(DB.PATH, self.update_item_button.invoke, None, None)
 
     def create_advanced_search_widgets(self, frame, columns, column_types):
         row = 0
@@ -705,6 +719,19 @@ class RelationWidget(ttk.LabelFrame):
 
         self.open_update_popup(selected_index, data)
 
+    def on_single_click(self, event):
+        selected_item = self.tree.focus()  # get selected item ID
+        if not selected_item:
+            return
+
+        selected_index = self.tree.index(self.tree.selection()[0])  # numeric index
+        data = self.relation.get_item(selected_index)
+
+        self.handle_single_click_item(selected_index, data)
+
+    def handle_single_click_item(self, selected_index, data):
+        pass
+
     def double_click(self, field, value):
         n = len(self.relation.curr_results)
         for i in range(0, n):
@@ -776,7 +803,6 @@ class RelationWidget(ttk.LabelFrame):
             raise Exception("Add item popup must be invoked() before append_update_entry_value() can be used.")
         self.update_entries[entry_name].insert(tk.END, value)
 
-    
     def open_update_popup(self, item_index, data):
         if self.popup is not None and self.popup.winfo_exists():
             return
@@ -841,6 +867,9 @@ class RelationWidget(ttk.LabelFrame):
         self.popup.deiconify()
         self.hold_popup(self.popup)
 
+    def set_search_field_text(self, text):
+        self.search_entry.delete(0, tk.END)
+        self.search_entry.insert(0, text)
 
     def search(self, event=None):
         text = self.search_entry.get()
@@ -852,7 +881,7 @@ class RelationWidget(ttk.LabelFrame):
     def get_add_item_title(self):
         return self.add_item_title
 
-    def add(self):
+    def add(self, default_values=None):
         if self.popup is not None and self.popup.winfo_exists():
             return
         self.popup = self.create_popup(title=self.get_add_item_title())
@@ -879,6 +908,9 @@ class RelationWidget(ttk.LabelFrame):
                 # Insert into the Entry
                 entry.delete(0, tk.END)
                 entry.insert(0, today)
+            if default_values is not None and col in default_values:
+                entry.delete(0, tk.END)
+                entry.insert(0, default_values[col])
         self.add_entries = entries
         self.add_widgets = add_widgets
 

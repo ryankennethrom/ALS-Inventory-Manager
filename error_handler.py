@@ -2,6 +2,8 @@ from error_ui import show_error_ui, ask_yes_no
 import traceback
 import sqlite3
 import DB
+from on_emergency_supply_use import *
+from confirm_dialog import ConfirmDialog
 
 def humanize_error(e: Exception) -> tuple[str, str]:
     msg = str(e)
@@ -77,7 +79,7 @@ def humanize_error(e: Exception) -> tuple[str, str]:
     return (out["Short"],out["Details"])
 
 def on_attempt_to_use_emergency_supplies(master, func, *args, **kwargs):
-    if ask_yes_no("Attempt to use emergency supplies. You must notify management about this product. Type 'I will notify management' below to confirm.", master, "I will notify management"):
+    if ConfirmDialog.get_instance().show("Attempt to use emergency supplies. You must notify management about this product.", master, "I will notify management"):
         result = DB.run_with_disabled_emergency_lock(DB.PATH, func, *args, **kwargs)
         return result
     else:
@@ -95,8 +97,6 @@ def run_with_error_handling(master, func, *args, **kwargs):
     except Exception as e:
         short, details = humanize_error(traceback.format_exc())
         
-        print(details)
-
         if "Attempt to use emergency supplies." in short:
             result = on_attempt_to_use_emergency_supplies(master, func, *args, **kwargs)
             payload = {
@@ -104,7 +104,6 @@ def run_with_error_handling(master, func, *args, **kwargs):
                 "result": result
             }
             return payload
-
         else: 
             show_error_ui(short, details, master) 
             payload = {

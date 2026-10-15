@@ -29,43 +29,64 @@ from stock_verify_action import StockVerifyAction
 from settings_tab import Settings
 
 def create_consumables_table(parent):
-        consumables = RelationInterface(
-            relation_name="ConsumableLogs",
-            default_search_text="",
-            simple_search_field="ProductName",
-            order_by="DateReceived DESC, id DESC",
-            db_path=db_path
-        )
-        consumables.on_create_item_clicked_original = consumables.on_create_item_clicked
-
         def create_item_quantity_times(obj, details: dict):
-            """Insert a new row into the database. Returns (status, user_message, error_details)."""
-            input_quantity = int(details["Quantity"])
-            if input_quantity <= 0:
-                raise Exception("Quantity must be > 0")
+                """Insert a new row into the database. Returns (status, user_message, error_details)."""
+                input_quantity = int(details["Quantity"])
+                if input_quantity <= 0:
+                    raise Exception("Quantity must be > 0")
 
-            details["Quantity"] = "1"
-            columns = ", ".join(details.keys())
-            placeholders = ", ".join(["?"] * len(details))
-            params = list(details.values())
+                details["Quantity"] = "1"
+                columns = ", ".join(details.keys())
+                placeholders = ", ".join(["?"] * len(details))
+                params = list(details.values())
 
-            for i in range(input_quantity):
-                obj.on_create_item_clicked_original(details)
-            obj.curr_results = obj.on_search_clicked()
+                for i in range(input_quantity):
+                    obj.on_create_item_clicked_original(details)
+                obj.curr_results = obj.on_search_clicked()
 
-        consumables.on_create_item_clicked = types.MethodType(create_item_quantity_times, consumables)
+        if False:    
+            consumables = RelationInterface(
+                relation_name="ConsumableLogs",
+                default_search_text="",
+                simple_search_field="ProductName",
+                order_by="DateReceived DESC, id DESC",
+                db_path=db_path
+            )
+            consumables.on_create_item_clicked_original = consumables.on_create_item_clicked
 
-        # ---------- InventoryTable widgets ----------
-        cons_widg = RelationWidget(
-            parent,
-            consumables,
-            exclude_fields_on_update=["CreatedDateTime"],
-            exclude_fields_on_create=["id", "CreatedDateTime"],
-            title="Consumable Logs",
-            labels=["Logs", "Consumables Only"]
-        )
+            
+            consumables.on_create_item_clicked = types.MethodType(create_item_quantity_times, consumables)
 
-        return cons_widg, consumables
+            # ---------- InventoryTable widgets ----------
+            cons_widg = RelationWidget(
+                parent,
+                consumables,
+                exclude_fields_on_update=["CreatedDateTime"],
+                exclude_fields_on_create=["id", "CreatedDateTime"],
+                title="Consumable Logs",
+                labels=["Logs", "Consumables Only"]
+            )
+        else:
+            widg_builder = RelationWidgetBuilder()
+            
+            cons_widget = (
+                                widg_builder
+                                .relation_name("ConsumableLogs")
+                                .default_search_text("")
+                                .simple_search_field("ProductName")
+                                .order_by("DateReceived DESC, id DESC")
+                                .exclude_fields_on_update(["CreatedDateTime"])
+                                .exclude_fields_on_create(["id", "CreatedDateTime"])
+                                .title("Consumable Logs")
+                                .override_on_create_item_clicked(create_item_quantity_times)
+                                .labels(["Logs", "Consumables Only"])
+                                .parent(parent)
+                                .no_export()
+                                .build()
+            )
+
+
+        return cons_widget, widg_builder.interface
 
 def create_non_consumables_table(parent):
         non_consumables = RelationInterface(
@@ -144,10 +165,10 @@ if __name__ == "__main__":
         Application.run_on_startup(True)
 
     DB.PATH = db_path
+    DB.init_db(db_path)
     DB.migrate(db_path)
     DB.add_column(db_path, "NonconsumableLogs", "Comments", "TEXT", default="''")
     
-    Application.Settings.clear_monthly_email_last_sent()
     if Application.should_send_monthly_email():
         DB.try_catch_monthly_email_turn(None, on_catch=lambda *_: Application.send_monthly_report())
     
@@ -190,46 +211,67 @@ if __name__ == "__main__":
         # -------------------- Main Window --------------------
         root.grid_rowconfigure(0, weight=1)
         root.grid_columnconfigure(0, weight=1)
-
-        # ---------- RelationInterface instances ----------
-        consumables = RelationInterface(
-            relation_name="ConsumableLogs",
-            default_search_text="",
-            simple_search_field="ProductName",
-            order_by="DateReceived DESC, id DESC",
-            db_path=db_path
-        )
-        consumables.on_create_item_clicked_original = consumables.on_create_item_clicked
-
+        
         def create_item_quantity_times(obj, details: dict):
-            """Insert a new row into the database. Returns (status, user_message, error_details)."""
-            print("Hey")
-            input_quantity = int(details["Quantity"])
-            if input_quantity <= 0:
-                raise Exception("Quantity must be > 0")
+                """Insert a new row into the database. Returns (status, user_message, error_details)."""
+                input_quantity = int(details["Quantity"])
+                if input_quantity <= 0:
+                    raise Exception("Quantity must be > 0")
 
-            details["Quantity"] = "1"
-            columns = ", ".join(details.keys())
-            placeholders = ", ".join(["?"] * len(details))
-            params = list(details.values())
+                details["Quantity"] = "1"
+                columns = ", ".join(details.keys())
+                placeholders = ", ".join(["?"] * len(details))
+                params = list(details.values())
 
-            for i in range(input_quantity):
-                obj.on_create_item_clicked_original(details)
-            obj.curr_results = obj.on_search_clicked()
+                for i in range(input_quantity):
+                    obj.on_create_item_clicked_original(details)
+                obj.curr_results = obj.on_search_clicked()
 
-        consumables.on_create_item_clicked = types.MethodType(create_item_quantity_times, consumables)
+        if False:
+            # ---------- RelationInterface instances ----------
+            consumables = RelationInterface(
+                relation_name="ConsumableLogs",
+                default_search_text="",
+                simple_search_field="ProductName",
+                order_by="DateReceived DESC, id DESC",
+                db_path=db_path
+            )
+            consumables.on_create_item_clicked_original = consumables.on_create_item_clicked
 
-        # ---------- InventoryTable widgets ----------
-        cons_widg = RelationWidget(
-            root,
-            consumables,
-            exclude_fields_on_update=["CreatedDateTime"],
-            exclude_fields_on_create=["id", "CreatedDateTime"],
-            title="Consumable Logs",
-            labels=["Logs", "Consumables Only"]
+            
+            consumables.on_create_item_clicked = types.MethodType(create_item_quantity_times, consumables)
+
+            # ---------- InventoryTable widgets ----------
+            cons_widg = RelationWidget(
+                root,
+                consumables,
+                exclude_fields_on_update=["CreatedDateTime"],
+                exclude_fields_on_create=["id", "CreatedDateTime"],
+                title="Consumable Logs",
+                labels=["Logs", "Consumables Only"]
+            )
+
+            cons_widg.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+        widg_builder = RelationWidgetBuilder()
+
+        cons_widget = (
+                            widg_builder
+                            .relation_name("ConsumableLogs")
+                            .default_search_text("")
+                            .simple_search_field("ProductName")
+                            .order_by("DateReceived DESC, id DESC")
+                            .exclude_fields_on_update(["CreatedDateTime"])
+                            .exclude_fields_on_create(["id", "CreatedDateTime"])
+                            .title("Consumable Logs")
+                            .override_on_create_item_clicked(create_item_quantity_times)
+                            .labels(["Logs", "Consumables Only"])
+                            .parent(root)
+                            .no_export()
+                            .build()
         )
 
-        cons_widg.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        cons_widget.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
         def on_tab_changed(event):
             registry.destroy_all_popups()
@@ -242,25 +284,67 @@ if __name__ == "__main__":
         root.grid_rowconfigure(0, weight=1)
         root.grid_columnconfigure(0, weight=1)
 
-        # ---------- RelationInterface instances ----------
-        products = RelationInterface(
-            relation_name="Products",
-            default_search_text="",
-            simple_search_field="ProductName",
-            db_path=db_path
-        )
+        inner_frame = tk.Frame(root)
+        inner_frame.grid(row=0, column=0, sticky="nsew", padx=1, pady=1)
         
+        inner_frame.rowconfigure(0, weight=1)
+        inner_frame.columnconfigure(0, weight=1)
 
-        # ---------- InventoryTable widgets ----------
-        left = RelationWidget(
-            root,
-            products,
-            title="Products",
-            labels=["Products"]
+        side_by_side_tables_frame = tk.Frame(inner_frame)
+        
+        side_by_side_tables_frame.rowconfigure(0, weight=1)
+        side_by_side_tables_frame.columnconfigure(0, weight=3)
+        side_by_side_tables_frame.columnconfigure(1, weight=1)
+        
+        left_frame = tk.Frame(side_by_side_tables_frame)
+        right_frame = tk.Frame(side_by_side_tables_frame)
+        
+        
+        products_widget = (
+                            RelationWidgetBuilder()
+                            .relation_name("Products")
+                            .default_search_text("")
+                            .simple_search_field("ProductName")
+                            .title("Products")
+                            .labels(["Products"])
+                            .parent(left_frame)
+                            .build()
         )
 
-        left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        product_vendors_widget = (
+                RelationWidgetBuilder()
+                .relation_name("ProductVendorDetails")
+                .default_search_text("")
+                .simple_search_field("ProductName")
+                .title("Product Vendors")
+                .labels(["Products"])
+                .exclude_fields_on_create(["id"])
+                .exclude_fields_on_update(["id"])
+                .parent(right_frame)
+                .build()
+        )
+        products_widget.search_original = products_widget.search
+        override_object_function(products_widget, "search", lambda *_: (products_widget.search_original(), product_vendors_widget.set_search_field_text(products_widget.relation.search_field_text), product_vendors_widget.search()))
+        override_object_function(products_widget, "handle_single_click_item", lambda self, index, data: (product_vendors_widget.set_search_field_text(data["ProductName"]), product_vendors_widget.search()))
+        
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=5)
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=5)
+        
+        products_widget.grid(row=0, column=0, sticky="nsew")
+        product_vendors_widget.grid(row=0, column=0, sticky="nsew")
 
+        left_frame.rowconfigure(0, weight=1)
+        left_frame.columnconfigure(0, weight=1)
+        
+        right_frame.rowconfigure(0, weight=1)
+        right_frame.columnconfigure(0, weight=1)
+
+        (
+            TitledGridsBuilder(inner_frame)
+            .add_section_bottom(side_by_side_tables_frame)
+            .build()
+         )
+        
         def on_tab_changed(event):
             registry.destroy_all_popups()
         notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
@@ -452,25 +536,7 @@ if __name__ == "__main__":
                 dangerously_low_header.configure(text=f"Dangerously Low ({str(len(dangerouslyLowRI.curr_results))})")
             return out 
         dangerouslyLowRI.on_search_clicked = on_danger_low_tables_update
-        
-        # dangerously_low_header.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
-        # dangerouslyLow.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5,20))
-
-        # reorder_header.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
-        # reorder.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 20))
-
-        # all_header.grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
-        # productsTotalSupply.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
-
-        # consumables_report_header.grid(row=6, column=0, columnspan=2, sticky="w", padx=10, pady=(20, 0))
-        # consumablesReport.grid(row=7, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
-        
-        # inner_frame.grid_columnconfigure(0, weight=1)
-        # inner_frame.grid_columnconfigure(1, weight=1)
-
-        # for i in range(7):
-        #    inner_frame.grid_rowconfigure(i, weight=1)
-        
+               
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         
@@ -554,6 +620,7 @@ if __name__ == "__main__":
 
         consumables_widget, consumables_ri = create_consumables_table(results_frame)
         consumables_widget.grid(row=0, column=0, sticky="nsew")
+
         registry.register(consumables_widget, "Results")
 
         non_cons_result_frame = ttk.Frame(results_frame, padding=10)
@@ -657,28 +724,31 @@ if __name__ == "__main__":
             def rebuild():
                 build_available_cons_actions(product_name, barcode)
 
-            receive_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
+            receive_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency, action_type="Receive")
             
             override_object_function(receive_action, "action", lambda self: receive_cons(product_name, barcode))
+
+            verify_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
 
             buttons = [
                 ("Set Fetch Rule", set_current_barcode),
                 ("Receive", lambda *_: (receive_action.execute(), build_available_cons_actions(product_name, barcode))),
-                ("Verify Stock", lambda *_: (receive_action.verify_product_quantity(), rebuild()))
+                ("Verify Stock", lambda *_: (verify_action.verify_product_quantity(), rebuild()))
             ] 
 
             if DB.is_cons_product_openable(db_path, product_name):
-                open_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
+                open_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency, action_type="Open")
                 override_object_function(open_action, "action", lambda self: open_cons(product_name, barcode))
                 buttons.append(("Open", lambda *_: (open_action.execute(), build_available_cons_actions(product_name, barcode))))
 
             if DB.is_cons_product_finishable(db_path, product_name):
-                finish_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
+                finish_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency, action_type="Finish")
                 override_object_function(finish_action, "action", lambda self: finish_cons(product_name, barcode))
                 buttons.append(("Finish", lambda *_: (finish_action.execute(), build_available_cons_actions(product_name,barcode))))
 
             for label, cmd in buttons:
                 btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_name, barcode), padding=10)
+                btn.relation_widget = consumables_widget
                 btn.pack(anchor="w", pady=3, fill="x")
                 button_widgets.append(btn)
 
@@ -724,22 +794,25 @@ if __name__ == "__main__":
                 if non_consumables_widget.popup is not None and non_consumables_widget.popup.winfo_exists():
                     non_consumables_widget.popup.bind("<Destroy>", lambda *_: rebuild())
 
-            receive_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
+            receive_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency, action_type="Receive")
             override_object_function(receive_action, "action", lambda self: (receive_non_cons(product_name, barcode_entry.get()), rebuild()))
+
+            verify_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
 
             buttons = [
                 ("Set Fetch Rule", set_current_barcode),
                 ("Receive", lambda *_: (receive_action.execute(), on_popup_destroy())),
-                ("Verify Stock", lambda *_: (receive_action.verify_product_quantity(),rebuild()))
+                ("Verify Stock", lambda *_: (verify_action.verify_product_quantity(),rebuild()))
             ]
 
             if DB.is_non_cons_product_openable(db_path, product_entry.get()):
-                open_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency)
+                open_action = StockVerifyAction(db_path, product_name, non_consumables_widget, consumables_widget, button_widgets, frequency=frequency, action_type="Open")
                 override_object_function(open_action, "action", lambda self: (open_non_cons(product_name, barcode_entry.get()), rebuild()))
                 buttons.append(("Open", lambda *_: (open_action.execute(), on_popup_destroy())))
 
             for label, cmd in buttons:
                 btn = ttk.Button(action_frame, text=label, command=lambda c=cmd: c(product_entry.get(), barcode_entry.get()), padding=10)
+                btn.relation_widget = non_consumables_widget
                 btn.pack(anchor="w", pady=3, fill="x")
                 button_widgets.append(btn)
 

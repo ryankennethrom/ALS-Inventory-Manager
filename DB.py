@@ -231,18 +231,6 @@ def connect(db_path):
     conn.execute("PRAGMA foreign_keys = ON;")  # ensure FK checks
     return conn
 
-def try_add_discontinued_column(db_path):
-    conn = connect(db_path)
-    cur = conn.cursor()
-
-    try:
-        cur.execute("ALTER TABLE Products ADD COLUMN IsDiscontinued TEXT NOT NULL DEFAULT 'n' CHECK (IsDiscontinued IN ('n', 'y'))")
-    except sqlite3.OperationalError:
-        pass
-
-    conn.commit()
-    conn.close()
-
 def recreate_dangerously_low(db_path):
     conn = connect(db_path)
     cursor = conn.cursor()
@@ -288,9 +276,8 @@ def get_on_low():
                 TotalQuantityAvailable,
                 IsConsumable,
                 UnitOfMeasure,
-                Station,
-                EmergencyCount
-            FROM DangerouslyLow
+                Station
+            FROM ReOrderList
             ORDER BY ProductName
         """)
 
@@ -722,7 +709,7 @@ def reorder_view(conn):
         FROM ConsumablesAvailableTotaled c
         LEFT JOIN Products p
             ON c.ProductName = p.ProductName
-        WHERE c.TotalQuantityAvailable <= p.LowSupplyCount AND c.TotalQuantityAvailable > 0 AND p.IsDiscontinued = 'n'
+        WHERE c.TotalQuantityAvailable <= p.LowSupplyCount AND p.IsDiscontinued = 'n'
 
         UNION ALL
 
@@ -738,10 +725,31 @@ def reorder_view(conn):
             ON n.ProductName = p.ProductName
         WHERE p.IsConsumable = 'n'
           AND COALESCE(n.TotalQuantityAvailable, 0) <= p.LowSupplyCount
-          AND COALESCE(n.TotalQuantityAvailable, 0) > 0
           AND p.IsDiscontinued = 'n';
     """)
 
+### Master Model
+def total_quantity_available(product_name):
+    conn = connect(get_db_path())
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT TotalQuantityAvailable
+    FROM ProductsTotalSupply
+    WHERE ProductName = ?
+    """, (product_name,))
+    row = cursor.fetchone()
+    return row[0] if row else 0
+
+def emergency_count(product_name):
+    conn = connect(get_db_path())
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT EmergencyCount
+    FROM Products
+    WHERE ProductName = ?
+    """, (product_name,))
+    row = cursor.fetchone()
+    return row[0] if row else 0
 
 def migrate(db_path):
     print("Running migrations")
@@ -752,7 +760,13 @@ def migrate(db_path):
             dangerously_low_supply_view,
             reorder_view,
             create_monthly_email_recipients_table,
-            add_default_monthly_email_recipients
+            add_default_monthly_email_recipients,
+            create_product_vendors_table,
+            try_add_discontinued_column,
+            clear_product_vendor_columns_on_products,
+            update_vendor_table_constraints,
+            vendor_productname_and_price_not_empty,
+            only_unopened_are_available
     ]
     try:
         conn.execute("PRAGMA foreign_keys = OFF;")
@@ -1093,7 +1107,7 @@ def init_db(db_path, test=False):
                     OLD.ProductName = NEW.ProductName AND 
                     OLD.DateOpened = '' AND 
                     NEW.DateOpened != '' AND 
-                    (SELECT COUNT(*) FROM ConsumableLogs WHERE ProductName = OLD.ProductName AND DateFinished = '' AND DateOpened = '') < (SELECT EmergencyCount FROM Products WHERE ProductName = OLD.ProductName)
+                    (SELECT COUNT(*) FROM ConsumableLogs WHERE ProductName = OLD.ProductName AND DateFinished = '' AND DateOpened = '') <= (SELECT EmergencyCount FROM Products WHERE ProductName = OLD.ProductName)
                 THEN RAISE(FAIL, 'Attempt to use emergency supplies.')
             END;
     END;

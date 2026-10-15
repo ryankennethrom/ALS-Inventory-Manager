@@ -131,7 +131,8 @@ def ask_yes_no(question: str, root: tk.Tk = None, confirm_text: str = None) -> b
     # ---------- Button Commands ----------
     def choose_yes():
         if confirm_text:
-            if entry_var.get() != confirm_text:
+            if entry.get() != confirm_text:
+                print(f"Confirmation text does not match. {entry.get()} vs. {confirm_text}")
                 error_var.set("Confirmation text does not match.")
                 return
         result["value"] = True

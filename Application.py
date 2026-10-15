@@ -243,13 +243,18 @@ class Application:
         recipients = DB.get_monthly_email_recipients()
 
         body = Application.get_monthly_report_html()
-
+        
+        result = dict()
         for recipient in recipients:
-            Application.send_email(
+            response = Application.send_email(
                 "ALS Inventory Monthly Report",
                 body,
                 recipient
             )
+
+            result[recipient] = response
+        
+        return result
 
     @staticmethod
     def send_email(subject: str, body: str, recipient: str) -> bool:
@@ -280,7 +285,8 @@ class Application:
                 url,
                 headers=headers,
                 json=payload,
-                timeout=30
+                timeout=30,
+                verify=False
             )
 
             response.raise_for_status()

@@ -47,8 +47,8 @@ class Settings(ttk.Frame):
 
         self.send_test_email_button = ttk.Button(
             reports_frame,
-            text="Send Test Report",
-            command=self.send_test_report
+            text="Send Report",
+            command=self.send_report
         )
 
         self.send_test_email_button.grid(
@@ -268,10 +268,11 @@ class Settings(ttk.Frame):
     # Monthly Report Actions
     # ======================================================
 
-    def send_test_report(self):
+    def send_report(self):
+        result = Application.send_monthly_report()
         messagebox.showinfo(
-            "Test Report",
-            "Test report sent."
+            "Report",
+            str(result)
         )
 
     def reset_last_sent_date(self):

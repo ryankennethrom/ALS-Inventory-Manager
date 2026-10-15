@@ -1304,6 +1304,8 @@ imported by:
  &#8226;   <a href="#entry_helpers">entry_helpers</a>
  &#8226;   <a href="#error_handler">error_handler</a>
  &#8226;   <a href="#main.py">main.py</a>
+ &#8226;   <a href="#on_emergency_supply_use">on_emergency_supply_use</a>
+ &#8226;   <a href="#relation_widget_builder">relation_widget_builder</a>
  &#8226;   <a href="#settings_tab">settings_tab</a>
  &#8226;   <a href="#stock_verify_action">stock_verify_action</a>
 
@@ -3937,6 +3939,7 @@ imports:
  &#8226;   <a href="#tkinter.font">tkinter.font</a>
  &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
  &#8226;   <a href="#tkinter.ttk">tkinter.ttk</a>
+ &#8226;   <a href="#traceback">traceback</a>
  &#8226;   <a href="#types">types</a>
  &#8226;   <a href="#uuid">uuid</a>
 
@@ -9729,6 +9732,24 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="confirm_dialog"></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/confirm_dialog.py" type="text/plain"><tt>confirm_dialog</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tkinter.ttk">tkinter.ttk</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#error_handler">error_handler</a>
+ &#8226;   <a href="#stock_verify_action">stock_verify_action</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="constants"></a>
   <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/constants.py" type="text/plain"><tt>constants</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -14155,7 +14176,9 @@ imported by:
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#DB">DB</a>
+ &#8226;   <a href="#confirm_dialog">confirm_dialog</a>
  &#8226;   <a href="#error_ui">error_ui</a>
+ &#8226;   <a href="#on_emergency_supply_use">on_emergency_supply_use</a>
  &#8226;   <a href="#sqlite3">sqlite3</a>
  &#8226;   <a href="#traceback">traceback</a>
 
@@ -14182,6 +14205,8 @@ imports:
 imported by:
     <a href="#RelationWidget">RelationWidget</a>
  &#8226;   <a href="#error_handler">error_handler</a>
+ &#8226;   <a href="#on_emergency_supply_use">on_emergency_supply_use</a>
+ &#8226;   <a href="#stock_verify_action">stock_verify_action</a>
 
   </div>
 
@@ -16583,6 +16608,11 @@ imported by:
   <a name="migrations"></a>
   <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/migrations.py" type="text/plain"><tt>migrations</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#sqlite3">sqlite3</a>
+
+  </div>
+  <div class="import">
 imported by:
     <a href="#DB">DB</a>
 
@@ -24498,6 +24528,24 @@ imported by:
 imported by:
     <a href="#PIL.FpxImagePlugin">PIL.FpxImagePlugin</a>
  &#8226;   <a href="#PIL.MicImagePlugin">PIL.MicImagePlugin</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="on_emergency_supply_use"></a>
+  <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/on_emergency_supply_use.py" type="text/plain"><tt>on_emergency_supply_use</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DB">DB</a>
+ &#8226;   <a href="#error_ui">error_ui</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#error_handler">error_handler</a>
+ &#8226;   <a href="#stock_verify_action">stock_verify_action</a>
 
   </div>
 
@@ -45306,7 +45354,8 @@ imported by:
   <a target="code" href="///C:/Users/aledm.lab01/Staging/ALS-Inventory-Manager/relation_widget_builder.py" type="text/plain"><tt>relation_widget_builder</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#RelationInterface">RelationInterface</a>
+    <a href="#DB">DB</a>
+ &#8226;   <a href="#RelationInterface">RelationInterface</a>
  &#8226;   <a href="#RelationWidget">RelationWidget</a>
  &#8226;   <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#tkinter.ttk">tkinter.ttk</a>
@@ -50254,6 +50303,7 @@ imported by:
  &#8226;   <a href="#RelationInterface">RelationInterface</a>
  &#8226;   <a href="#error_handler">error_handler</a>
  &#8226;   <a href="#main.py">main.py</a>
+ &#8226;   <a href="#migrations">migrations</a>
  &#8226;   <a href="#pandas.io.sql">pandas.io.sql</a>
  &#8226;   <a href="#sqlite3">sqlite3</a>
  &#8226;   <a href="#sqlite3.__main__">sqlite3.__main__</a>
@@ -50515,7 +50565,10 @@ imported by:
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#DB">DB</a>
+ &#8226;   <a href="#confirm_dialog">confirm_dialog</a>
  &#8226;   <a href="#date">date</a>
+ &#8226;   <a href="#error_ui">error_ui</a>
+ &#8226;   <a href="#on_emergency_supply_use">on_emergency_supply_use</a>
  &#8226;   <a href="#random">random</a>
  &#8226;   <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
@@ -51625,6 +51678,7 @@ imports:
 imported by:
     <a href="#DB">DB</a>
  &#8226;   <a href="#RelationWidget">RelationWidget</a>
+ &#8226;   <a href="#confirm_dialog">confirm_dialog</a>
  &#8226;   <a href="#entry_helpers">entry_helpers</a>
  &#8226;   <a href="#error_ui">error_ui</a>
  &#8226;   <a href="#main.py">main.py</a>
@@ -51800,6 +51854,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#RelationWidget">RelationWidget</a>
+ &#8226;   <a href="#confirm_dialog">confirm_dialog</a>
  &#8226;   <a href="#entry_helpers">entry_helpers</a>
  &#8226;   <a href="#error_ui">error_ui</a>
  &#8226;   <a href="#main.py">main.py</a>
@@ -51999,7 +52054,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#_distutils_hack">_distutils_hack</a>
+    <a href="#RelationWidget">RelationWidget</a>
+ &#8226;   <a href="#_distutils_hack">_distutils_hack</a>
  &#8226;   <a href="#_py_warnings">_py_warnings</a>
  &#8226;   <a href="#_pyrepl._threading_handler">_pyrepl._threading_handler</a>
  &#8226;   <a href="#_pyrepl.console">_pyrepl.console</a>
