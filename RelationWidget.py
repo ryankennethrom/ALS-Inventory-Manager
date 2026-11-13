@@ -897,7 +897,6 @@ class RelationWidget(ttk.LabelFrame):
             label = ttk.Label(frame, text=f"{col}:")
             label.grid(row=i, column=0, sticky="e", pady=2)
             entry = ttk.Entry(frame)
-            attach_helper(self.master, col, entry, self.relation.db_path, self.labels, self.all_columns, self.all_column_types)
             entry.grid(row=i, column=1, pady=2, padx=5)
             entries[col] = entry
             add_widgets[col] = {"Label":label, "Entry" : entry}
@@ -911,6 +910,11 @@ class RelationWidget(ttk.LabelFrame):
             if default_values is not None and col in default_values:
                 entry.delete(0, tk.END)
                 entry.insert(0, default_values[col])
+
+
+        for col, entry in entries.items():
+            attach_helper(self.master, col, entry, self.relation.db_path, self.labels, self.all_columns, self.all_column_types, [], entries)
+
         self.add_entries = entries
         self.add_widgets = add_widgets
 

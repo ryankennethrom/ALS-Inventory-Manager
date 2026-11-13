@@ -38,7 +38,7 @@ def humanize_error(e: Exception) -> tuple[str, str]:
         out["Short"]="Action Type must be 'Received' or 'Opened'."
     
     elif "FOREIGN KEY constraint failed" in msg:
-        out["Short"]="Logs must reference an existing product name."
+        out["Short"]="Another table is referencing the selected row(s)."
     
     elif "CHECK constraint failed: ( OpenedInitials == '' AND DateOpened == '' ) or (OpenedInitials != '' AND DateOpened != '')" in msg:
         out["Short"]="OpenedInitials and DateOpened must both have values."

@@ -17,6 +17,7 @@ import DB
 class Application:
     EXE_NAME = "ALS Inventory Manager.exe"
     DatabasePath = "Resources/Database/data.db"
+    MigrationsPath = "Resources/Database/migrations.data"
     HELPER_NAME = "ALS Inventory Helper.exe"
     HELPER_PATH = os.path.join("Resources", "Helper", HELPER_NAME)
 
@@ -377,11 +378,13 @@ class Application:
 
         base_dir = os.path.dirname(exe_path)
         db_path = os.path.join(base_dir, Application.DatabasePath)
+        migrations_path = os.path.join(base_dir, Application.MigrationsPath)
 
-        if os.path.exists(db_path):
+        if os.path.exists(db_path) or os.path.exists(migrations_path):
             shutil.copy2(db_path, os.path.join(target_dir, "data.db"))
+            shutil.copy2(migrations_path, os.path.join(target_dir, "migrations.data"))
         else:
-            raise FileNotFoundError("data.db not found")
+            raise FileNotFoundError("One of 2 database files not found not found")
 
         return target_dir
 

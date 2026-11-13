@@ -15,7 +15,7 @@ class RelationWidgetBuilder():
         self.widget_params = dict()
         self.widget_params["master"] =  parent
         self.on_create_item_clicked_override = None
-
+        self.simple_search_exact = False
     def default_widget(
         self,
         *,
@@ -50,8 +50,10 @@ class RelationWidgetBuilder():
         self.interface_params["default_search_text"] = text
         return self
 
-    def simple_search_field(self, field):
+    def simple_search_field(self, field, is_exact_search=False):
         self.interface_params["simple_search_field"] = field
+        if is_exact_search:
+            self.simple_search_exact = True
         return self
 
     def exclude_fields_on_update(self, fields):
@@ -129,7 +131,23 @@ class RelationWidgetBuilder():
         if self.on_create_item_clicked_override:
             interface.on_create_item_clicked_original = interface.on_create_item_clicked
             interface.on_create_item_clicked = types.MethodType(self.on_create_item_clicked_override, interface)
-
+        
+        if self.simple_search_exact:
+            def on_search_field_changed_new(obj, text):
+                    obj.search_field_text = text
+                    if text != "":
+                        obj.filter_dict["simple_search"] = {
+                                    "clauses": [f"{obj.simple_search_field} = ?"],
+                                    "params":[f"{text}%"]
+                        }
+                    else:
+                        obj.filter_dict["simple_search"] = {
+                                    "clauses": [],
+                                    "params":[]
+                        }
+                    obj.on_filter_changed(obj.filter_dict)
+            override_object_function(widget, "on_search_field_changed", lambda *_: (on_search_field_changed_new(widget, widget.search_field_text)))
+        
         return widget
 
 

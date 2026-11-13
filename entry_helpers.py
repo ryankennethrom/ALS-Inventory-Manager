@@ -704,7 +704,137 @@ def unattach_all():
         if entry.winfo_exists():
             entry.unbind("<FocusIn>")
 
-def attach_helper(root, entry_name, entry, db_path, labels, all_columns, all_column_types, filters=[]):
+def attach_vendor_options(entry, product_entry):
+    dropdown = None
+
+    def show_dropdown(event=None):
+        nonlocal dropdown
+        # Prevent multiple popups
+        if dropdown and dropdown.winfo_exists():
+            return
+
+        vendor_options = dict()
+        vendor_options_user_input_lookup = dict()
+        vendor_options_user_facing = []
+
+        parent = entry.winfo_toplevel()
+
+        dropdown = tk.Toplevel(parent)
+        dropdown.overrideredirect(True)
+        dropdown.lift()
+
+        # Position under entry
+        def reposition_dropdown(event=None):
+            if dropdown and dropdown.winfo_exists():
+                x = entry.winfo_rootx()
+                y = entry.winfo_rooty() + entry.winfo_height()
+                dropdown.geometry(f"+{x}+{y}")
+
+        reposition_dropdown()
+        parent.bind("<Configure>", reposition_dropdown)
+
+        # ---------------- ADDED: frame + scrollbar ----------------
+        frame = tk.Frame(dropdown)
+
+        scrollbar = tk.Scrollbar(frame)
+
+
+        listbox = tk.Listbox(
+            frame,
+            height=8,  # LIMIT VISIBLE ROWS
+            yscrollcommand=scrollbar.set
+        )
+
+        scrollbar.config(command=listbox.yview)
+        # ----------------------------------------------------------
+        MAX_VISIBLE = len(vendor_options)
+        MIN_VISIBLE = len(vendor_options)
+        def update_list(event=None):
+            nonlocal vendor_options_user_input_lookup
+            if not dropdown or not dropdown.winfo_exists():
+                return
+            dropdown.lift()
+            listbox.delete(0, tk.END)
+
+            vendor_options = DB.get_vendor_options(product_entry.get())
+            vendor_options_user_input_lookup = dict()
+            vendor_options_user_facing = []
+            
+            for vendor in vendor_options.values():
+                vendor_options_user_input_lookup[f"{vendor['VendorNumber']} (id: {vendor["id"]})"] = vendor
+                vendor_options_user_facing.append(f"{vendor['VendorNumber']} (id: {vendor["id"]})")
+
+            items = vendor_options_user_facing
+            for item in items:
+                listbox.insert(tk.END, item)
+
+            visible_rows = max(MIN_VISIBLE, min(len(items), MAX_VISIBLE))
+            max_width = max(len(item) for item in items)
+            listbox.config(height=visible_rows-2, width=max_width)
+
+        update_list()
+        frame.pack(fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        listbox.pack(side="left", fill="both", expand=True)
+        
+        # Handle selection
+        def on_button_down(event=None):
+            if listbox.curselection():
+                value = listbox.get(listbox.curselection()[0])
+                if value in vendor_options_user_input_lookup:
+                    vendor_id = vendor_options_user_input_lookup[value]["id"] 
+                    entry.delete(0, tk.END)
+                    entry.insert(0, vendor_id)
+                else:
+                    raise Exception(f"File Path entry helper doesn't recognize a user's input:({value}) with keys:({vendor_options_user_input_lookup})")
+                entry.focus_set()
+                dropdown.destroy()
+                pyautogui.press("enter")
+
+        def close_if_out_of_focus(e):
+            try:
+                x = int(event.x_root)
+                y = int(event.y_root)
+
+                popup = dropdown
+                px = int(popup.winfo_rootx())
+                py = int(popup.winfo_rooty())
+                pw = int(popup.winfo_width())
+                ph = int(popup.winfo_height())
+
+            except Exception:
+                dropdown.destroy()
+                return
+
+            if px <= x <= px + pw and py <= y <= py + ph:
+                return
+            else:
+                dropdown.destroy()
+
+        def focus_listbox(e):
+            if dropdown.focus_get() != listbox:
+                listbox.focus_set()
+                listbox.selection_clear(0, tk.END)
+                listbox.activate(0)
+                listbox.selection_set(0)
+                listbox.see(0)
+
+        def unfocus_listbox(e):
+            entry.focus_set()
+            return "break"
+
+        parent.bind("<Button-1>", close_if_out_of_focus)
+        parent.bind("<Down>", focus_listbox)
+        listbox.bind("<Up>", unfocus_listbox)
+        listbox.bind("<Button-1>", on_button_down)
+        listbox.bind("<Return>", on_button_down)
+        parent.bind("<Tab>", lambda e: dropdown.destroy())
+        parent.bind("<Unmap>", lambda e: dropdown.destroy())
+        entry.bind("<Return>", lambda e: dropdown.destroy(), add='+')
+    return entry.bind("<FocusIn>", show_dropdown)
+
+
+def attach_helper(root, entry_name, entry, db_path, labels, all_columns, all_column_types, filters=[], popup_entries=None):
     entry_config = (root, entry_name, entry, db_path, labels, all_columns, all_column_types)  
     
     if entry_config not in _registry:
@@ -725,6 +855,8 @@ def attach_helper(root, entry_name, entry, db_path, labels, all_columns, all_col
         attach_filepath_manager(entry)
     elif col == "BarcodeContains":
         attach_barcode_options(entry)
+    elif col == "VendorID" and popup_entries is not None:
+        attach_vendor_options(entry, popup_entries["ProductName"])
 
 def unattach_helpers(entry):
     entry.unbind("<FocusIn>")

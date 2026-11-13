@@ -226,7 +226,9 @@ def ask_for_db_path():
 
     return db_path
 
-def connect(db_path):
+def connect(db_path=None):
+    if db_path is None:
+        db_path = get_db_path()
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON;")  # ensure FK checks
     return conn
@@ -504,8 +506,6 @@ def add_barcode_check_constraint(db_path):
     conn.commit()
     conn.close()
 
-
-
 def consumable_logs_table(conn):
     cursor = conn.cursor()
 
@@ -607,7 +607,6 @@ def consumable_logs_table(conn):
                 OR (DateOpened != '' AND DateFinished == '')
                 OR (DateOpened != '' AND DateFinished != '')
             ),
-
             FOREIGN KEY (ProductName)
                 REFERENCES Products(ProductName)
                 ON DELETE RESTRICT
@@ -766,7 +765,10 @@ def migrate(db_path):
             clear_product_vendor_columns_on_products,
             update_vendor_table_constraints,
             vendor_productname_and_price_not_empty,
-            only_unopened_are_available
+            only_unopened_are_available,
+            create_vendor_id_column_in_consumable_logs,
+            add_and_populate_vendor_columns_for_non_consumables,
+            fix_consumable_logs_not_enforcing_foreign_key
     ]
     try:
         conn.execute("PRAGMA foreign_keys = OFF;")
@@ -940,7 +942,6 @@ def get_out_of_stock():
 
     finally:
         conn.close()
-
 
 def init_db(db_path, test=False):
     conn = sqlite3.connect(db_path)
@@ -1755,4 +1756,29 @@ def run_with_disabled_emergency_lock(db_path, func, *args, **kwargs):
 
     finally:
         conn.close()
+
+def get_vendor_options(product_name):
+    conn = connect()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM ProductVendorDetails
+        WHERE ProductName = ?
+        """,
+        (product_name,)
+    )
+
+    result = {}
+
+    for row in cursor.fetchall():
+        row_dict = dict(row)
+        vendor_id = row_dict["id"]
+        result[vendor_id] = row_dict
+
+    conn.close()
+
+    return result
 

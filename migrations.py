@@ -60,7 +60,6 @@ def try_add_discontinued_column(conn):
 def clear_product_vendor_columns_on_products(conn):
     cursor = conn.cursor()
 
-
     cursor.execute(
     """
         ALTER TABLE Products DROP COLUMN Price;
@@ -237,4 +236,351 @@ def only_unopened_are_available(conn):
     for name, sql in triggers:
         cursor.execute(sql)
 
-    
+def create_vendor_id_column_in_consumable_logs(conn):
+    cursor = conn.cursor()
+
+    # 1. Fetch triggers referencing Products
+    cursor.execute("""
+        SELECT name, sql FROM sqlite_master
+        WHERE type='trigger';
+    """)
+    triggers = cursor.fetchall()
+
+    # 2. Fetch views referencing Products
+    cursor.execute("""
+        SELECT name, sql FROM sqlite_master
+        WHERE type='view';
+    """)
+    views = cursor.fetchall()
+
+    # 3. Drop triggers
+    for name, _ in triggers:
+        cursor.execute(f"DROP TRIGGER IF EXISTS {name};")
+
+    # 4. Drop views
+    for name, _ in views:
+        cursor.execute(f"DROP VIEW IF EXISTS {name};")
+
+    # ---------- Consumable Logs ----------
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ConsumableLogs_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ProductName TEXT NOT NULL,
+            CertifiedValue TEXT NOT NULL CHECK (CertifiedValue != ''),
+            CertificationDate TEXT NOT NULL
+                CHECK (
+                    (CertificationDate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND CertificationDate = date(CertificationDate))
+                    OR CertificationDate = 'Not Set'
+                    OR CertificationDate = 'Missing'
+                    OR CertificationDate = 'Unknown'
+                ),
+            LOT TEXT NOT NULL CHECK (LOT != ''),
+            CoaFilePath TEXT NOT NULL CHECK (CoaFilePath != ''),
+            Quantity INTEGER NOT NULL
+                CHECK (Quantity = 1),
+
+            -- Dates for lifecycle
+            DateReceived TEXT NOT NULL
+                CHECK (
+                    DateReceived GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND DateReceived = date(DateReceived)
+                    OR DateReceived = "Unknown"
+                ),
+
+            ReceivedInitials TEXT NOT NULL
+                CHECK (
+                    ReceivedInitials != ''
+                ),
+
+            ExpiryDate TEXT NOT NULL
+                CHECK (
+                    ExpiryDate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND ExpiryDate = date(ExpiryDate)
+                    OR ExpiryDate = "Missing"
+                    OR ExpiryDate = "Unknown"
+                ),
+
+            DateOpened TEXT
+                CHECK (
+                    DateOpened == '' OR
+                    (
+                        DateOpened GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                        AND DateOpened = date(DateOpened)
+                    )
+                ),
+
+             OpenedInitials TEXT
+                CHECK (
+                    ( OpenedInitials == '' AND DateOpened == '' ) or (OpenedInitials != '' AND DateOpened != '')
+                ),
+
+            DateFinished TEXT
+                CHECK (
+                    DateFinished == '' OR
+                    (
+                        DateFinished GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                        AND DateFinished = date(DateFinished)
+                    )
+                ),
+
+            FinishedInitials TEXT
+                CHECK (
+                    (FinishedInitials == '' AND DateFinished == '') or (FinishedInitials != '' AND DateFinished != '')
+                ),
+            PONumber TEXT NOT NULL CHECK (PONumber != ''),
+            Comments TEXT DEFAULT '',
+            VendorID INTEGER NOT NULL,
+
+            -- Lifecycle state consistency
+            CHECK (
+                (DateOpened == '' AND DateFinished == '')
+                OR (DateOpened != '' AND DateFinished == '')
+                OR (DateOpened != '' AND DateFinished != '')
+            ),
+            FOREIGN KEY (VendorID) REFERENCES ProductVendorsDetails(id) ON DELETE RESTRICT,
+            FOREIGN KEY (ProductName)
+                REFERENCES Products(ProductName)
+                ON DELETE RESTRICT
+        ) STRICT;
+    """)
+
+    # 6. Copy data from old table
+    cursor.execute("""
+        INSERT INTO ConsumableLogs_new
+        SELECT
+            cl.*,
+            pvd.id AS VendorID
+        FROM ConsumableLogs cl
+        JOIN ProductVendorDetails pvd
+            ON pvd.ProductName = cl.ProductName;
+    """)
+
+    # 7. Drop old table
+    cursor.execute("DROP TABLE ConsumableLogs;")
+
+    # 8. Rename new table
+    cursor.execute("ALTER TABLE ConsumableLogs_new RENAME TO ConsumableLogs;")
+
+    # 9. Restore views
+    for name, sql in views:
+        cursor.execute(sql)
+
+    # 10. Restore triggers
+    for name, sql in triggers:
+        cursor.execute(sql)
+
+def add_and_populate_vendor_columns_for_non_consumables(conn):
+    cursor = conn.cursor()
+
+    # 1. Fetch triggers referencing Products
+    cursor.execute("""
+        SELECT name, sql FROM sqlite_master
+        WHERE type='trigger';
+    """)
+    triggers = cursor.fetchall()
+
+    # 2. Fetch views referencing Products
+    cursor.execute("""
+        SELECT name, sql FROM sqlite_master
+        WHERE type='view';
+    """)
+    views = cursor.fetchall()
+
+    # 3. Drop triggers
+    for name, _ in triggers:
+        cursor.execute(f"DROP TRIGGER IF EXISTS {name};")
+
+    # 4. Drop views
+    for name, _ in views:
+        cursor.execute(f"DROP VIEW IF EXISTS {name};")
+
+    # ---------- Non-consumable logs ----------
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS NonConsumableLogs_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ProductName TEXT NOT NULL,
+
+            Quantity INTEGER NOT NULL
+                CHECK (Quantity > 0),
+
+            Date TEXT NOT NULL
+                CHECK (
+                    Date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND Date = date(Date)
+                ),
+
+            Initials TEXT NOT NULL
+                CHECK (length(Initials) BETWEEN 2 AND 5),
+
+            ActionType TEXT NOT NULL
+                CHECK (
+                    ActionType IN ('Received', 'Opened')
+                ),
+            PONumber TEXT NOT NULL CHECK (ActionType = 'Opened' OR PONumber != ''),
+            Comments TEXT DEFAULT '',
+            VendorID TEXT,
+            FOREIGN KEY (VendorID) REFERENCES ProductVendorDetails(id) ON DELETE RESTRICT,
+            FOREIGN KEY (ProductName)
+                REFERENCES Products(ProductName)
+                ON DELETE RESTRICT
+        ) STRICT;
+    """)
+
+    # 6. Copy data from old table
+    cursor.execute("""
+        INSERT INTO NonConsumableLogs_new
+        SELECT
+            ncl.*,
+            pvd.id AS VendorID
+        FROM NonConsumableLogs ncl
+        JOIN ProductVendorDetails pvd
+            ON pvd.ProductName = ncl.ProductName;
+    """)
+
+    # 7. Drop old table
+    cursor.execute("DROP TABLE NonConsumableLogs;")
+
+    # 8. Rename new table
+    cursor.execute("ALTER TABLE NonConsumableLogs_new RENAME TO NonConsumableLogs;")
+
+    # 9. Restore views
+    for name, sql in views:
+        cursor.execute(sql)
+
+    # 10. Restore triggers
+    for name, sql in triggers:
+        cursor.execute(sql)
+
+
+def fix_consumable_logs_not_enforcing_foreign_key(conn):
+    cursor = conn.cursor()
+
+    # 1. Fetch triggers referencing Products
+    cursor.execute("""
+        SELECT name, sql FROM sqlite_master
+        WHERE type='trigger';
+    """)
+    triggers = cursor.fetchall()
+
+    # 2. Fetch views referencing Products
+    cursor.execute("""
+        SELECT name, sql FROM sqlite_master
+        WHERE type='view';
+    """)
+    views = cursor.fetchall()
+
+    # 3. Drop triggers
+    for name, _ in triggers:
+        cursor.execute(f"DROP TRIGGER IF EXISTS {name};")
+
+    # 4. Drop views
+    for name, _ in views:
+        cursor.execute(f"DROP VIEW IF EXISTS {name};")
+
+    # ---------- Consumable Logs ----------
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ConsumableLogs_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ProductName TEXT NOT NULL,
+            CertifiedValue TEXT NOT NULL CHECK (CertifiedValue != ''),
+            CertificationDate TEXT NOT NULL
+                CHECK (
+                    (CertificationDate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND CertificationDate = date(CertificationDate))
+                    OR CertificationDate = 'Not Set'
+                    OR CertificationDate = 'Missing'
+                    OR CertificationDate = 'Unknown'
+                ),
+            LOT TEXT NOT NULL CHECK (LOT != ''),
+            CoaFilePath TEXT NOT NULL CHECK (CoaFilePath != ''),
+            Quantity INTEGER NOT NULL
+                CHECK (Quantity = 1),
+
+            -- Dates for lifecycle
+            DateReceived TEXT NOT NULL
+                CHECK (
+                    DateReceived GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND DateReceived = date(DateReceived)
+                    OR DateReceived = "Unknown"
+                ),
+
+            ReceivedInitials TEXT NOT NULL
+                CHECK (
+                    ReceivedInitials != ''
+                ),
+
+            ExpiryDate TEXT NOT NULL
+                CHECK (
+                    ExpiryDate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                    AND ExpiryDate = date(ExpiryDate)
+                    OR ExpiryDate = "Missing"
+                    OR ExpiryDate = "Unknown"
+                ),
+
+            DateOpened TEXT
+                CHECK (
+                    DateOpened == '' OR
+                    (
+                        DateOpened GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                        AND DateOpened = date(DateOpened)
+                    )
+                ),
+
+             OpenedInitials TEXT
+                CHECK (
+                    ( OpenedInitials == '' AND DateOpened == '' ) or (OpenedInitials != '' AND DateOpened != '')
+                ),
+
+            DateFinished TEXT
+                CHECK (
+                    DateFinished == '' OR
+                    (
+                        DateFinished GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+                        AND DateFinished = date(DateFinished)
+                    )
+                ),
+
+            FinishedInitials TEXT
+                CHECK (
+                    (FinishedInitials == '' AND DateFinished == '') or (FinishedInitials != '' AND DateFinished != '')
+                ),
+            PONumber TEXT NOT NULL CHECK (PONumber != ''),
+            Comments TEXT DEFAULT '',
+            VendorID INTEGER NOT NULL,
+
+            -- Lifecycle state consistency
+            CHECK (
+                (DateOpened == '' AND DateFinished == '')
+                OR (DateOpened != '' AND DateFinished == '')
+                OR (DateOpened != '' AND DateFinished != '')
+            ),
+            FOREIGN KEY (VendorID) REFERENCES ProductVendorDetails(id) ON DELETE RESTRICT,
+            FOREIGN KEY (ProductName)
+                REFERENCES Products(ProductName)
+                ON DELETE RESTRICT
+        ) STRICT;
+    """)
+
+    # 6. Copy data from old table
+    cursor.execute("""
+        INSERT INTO ConsumableLogs_new
+        SELECT *
+        FROM ConsumableLogs;
+    """)
+
+    # 7. Drop old table
+    cursor.execute("DROP TABLE ConsumableLogs;")
+
+    # 8. Rename new table
+    cursor.execute("ALTER TABLE ConsumableLogs_new RENAME TO ConsumableLogs;")
+
+    # 9. Restore views
+    for name, sql in views:
+        cursor.execute(sql)
+
+    # 10. Restore triggers
+    for name, sql in triggers:
+        cursor.execute(sql)
+
+

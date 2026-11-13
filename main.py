@@ -324,8 +324,16 @@ if __name__ == "__main__":
                 .build()
         )
         products_widget.search_original = products_widget.search
-        override_object_function(products_widget, "search", lambda *_: (products_widget.search_original(), product_vendors_widget.set_search_field_text(products_widget.relation.search_field_text), product_vendors_widget.search()))
-        override_object_function(products_widget, "handle_single_click_item", lambda self, index, data: (product_vendors_widget.set_search_field_text(data["ProductName"]), product_vendors_widget.search()))
+
+        def query_exact_product_name_search(product_name):
+            product_vendors_widget.advanced_search(product_vendors_widget.advance_button, silent=True)
+            product_vendors_widget.advanced_search_widgets["ProductName"][1].set("exactly")
+            product_vendors_widget.advanced_search_widgets["ProductName"][0].delete(0, tk.END)
+            product_vendors_widget.advanced_search_widgets["ProductName"][0].insert(0, product_name)
+            product_vendors_widget.apply_filters_button.invoke()
+            
+        override_object_function(products_widget, "search", lambda *_: (products_widget.search_original(), query_exact_product_name_search(products_widget.relation.search_field_text)))
+        override_object_function(products_widget, "handle_single_click_item", lambda self, index, data: (query_exact_product_name_search(data["ProductName"])))
         
         left_frame.grid(row=0, column=0, sticky="nsew", padx=5)
         right_frame.grid(row=0, column=1, sticky="nsew", padx=5)
@@ -665,7 +673,7 @@ if __name__ == "__main__":
             non_consumables_widget.add_entries["ProductName"].insert(0, name)
             
 
-            modify_widgets(non_consumables_widget.add_widgets, include=["Quantity", "Date", "Initials"])
+            modify_widgets(non_consumables_widget.add_widgets, include=["Quantity", "Date", "Initials", "VendorID"])
             non_consumables_widget.hold_popup(non_consumables_widget.popup)
 
         def receive_non_cons(name, barcode):
@@ -677,7 +685,7 @@ if __name__ == "__main__":
             non_consumables_widget.add_entries["ProductName"].insert(0, name)
             
 
-            modify_widgets(non_consumables_widget.add_widgets, include=["Quantity", "Date", "Initials", "PONumber"])
+            modify_widgets(non_consumables_widget.add_widgets, include=["Quantity", "Date", "Initials", "PONumber", "VendorID"])
             non_consumables_widget.hold_popup(non_consumables_widget.popup)
 
         def set_current_barcode(name, barcode):
